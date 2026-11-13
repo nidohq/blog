@@ -6,7 +6,7 @@ import {
 	scValToNative,
 	xdr,
 } from "@stellar/stellar-sdk"
-import { BlogChain, someoneElse } from "./blog-chain"
+import { BlogChain, someoneElse } from "../../app/src/demo/blogChain"
 import {
 	account,
 	accountAuth,

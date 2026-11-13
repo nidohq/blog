@@ -1,7 +1,7 @@
 # Blog: a Nido example with comments and tips
 
-**Live: <https://nidohq.github.io/blog/>** (Stellar testnet), once the blog is
-deployed to testnet; see
+**Live: <https://nidohq.github.io/blog/>** (Stellar testnet). Until the blog is
+deployed to testnet it is a read-only demo with seeded posts; see
 [Deploying to GitHub Pages](#deploying-to-github-pages).
 
 An example Stellar app made from
@@ -129,17 +129,33 @@ the unit and browser tests on every pull request.
 
 ## Deploying to GitHub Pages
 
-The repository's Pages source is "GitHub Actions".
-[`.github/workflows/pages.yml`](.github/workflows/pages.yml) runs on every push
-to `main`: the quick start above on a fresh runner, lint, format check and unit
-tests, then `npm run clients:testnet`, `npm run build` with `BASE_PATH` from
-`actions/configure-pages`, and deploys `app/dist`. `BASE_PATH` sets Vite's
-`base` and the router's, and the build copies `index.html` to `404.html` so a
-refresh on `/posts/3` still loads the app.
+GitHub Pages serves the `gh-pages` branch (repo setting: Pages source "Deploy
+from a branch", branch `gh-pages`, folder `/ (root)`). Two workflows write to
+it, and both build with [`scripts/build-site.sh`](scripts/build-site.sh):
 
-The site needs the blog on testnet, and nothing in this repository has deployed
-it yet. Until `scaffold.yml` pins a `testnet:` ID for the blog, the workflow
-checks and tests the app and skips the deploy with a notice. To publish:
+- [`pages.yml`](.github/workflows/pages.yml), on every push to `main`: the quick
+  start above on a fresh runner, lint, format check and unit tests, then the
+  site at the branch root, <https://nidohq.github.io/blog/>.
+  `clean-exclude: pr-preview` keeps the previews.
+- [`pr-preview.yml`](.github/workflows/pr-preview.yml), on every pull request
+  from this repository (forks can't push to `gh-pages`): the site under
+  `pr-preview/pr-<number>/`, with a sticky comment linking it, removed when the
+  pull request closes.
+
+`BASE_PATH` (`/blog/` or `/blog/pr-preview/pr-<n>/`) sets Vite's `base` and the
+router's, and the build copies `index.html` to `404.html` so a refresh on
+`/posts/3` still loads the main site. Pages serves only the root's `404.html`,
+so in a preview, open posts from its own links rather than refreshing them.
+
+**Demo until the blog is on testnet.** The site needs a contract to call, and
+nothing in this repository has deployed one yet. Until `scaffold.yml` pins a
+`testnet:` ID for the blog, `build-site.sh` builds a read-only demo: prototype
+clients with a placeholder ID and `PUBLIC_BLOG_DEMO=true`, so the app reads
+seeded posts and comments from the same in-memory blog the browser tests use
+([`app/src/demo`](app/src/demo)), says "Demo data: the contract is not deployed
+yet" on every page, and keeps its post, comment and tip forms closed. With a
+pin, it builds against the real contract, the demo code is not in the bundle,
+and the script fails the build if it finds it there. To leave the demo:
 
 1. From a checkout of `main`, run `npm run tools:scaffold && npm ci`, then
    `npm run deploy:testnet`. It deploys `contracts/blog` to testnet with a
@@ -181,8 +197,9 @@ and the commit after it makes it the blog:
   relayed calls, and count only tips against the cap;
 - the package name (`blog-example`), page title, this README, and the dev port
   `PORT=5421`, the port `npm run new-app` gives an app named blog;
-- GitHub Pages as Guess the Number does it, plus the deploy guard above, and the
-  Blog tests workflow;
+- GitHub Pages from the `gh-pages` branch with per-PR previews, as
+  stellar-registry/perch does it, the demo build above, and the Blog tests
+  workflow;
 - the template-only files an app made with `npm run new-app` doesn't carry:
   `CHANGELOG.md`, `CONTRIBUTING.md`, `scripts/new-app.*` and `scripts/blank/`.
 

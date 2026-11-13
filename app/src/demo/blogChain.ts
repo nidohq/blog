@@ -1,15 +1,14 @@
 import {
 	Address,
-	StrKey,
 	nativeToScVal,
 	scValToNative,
 	xdr,
 } from "@stellar/stellar-sdk"
 
-// The blog contract as the mocked network runs it: an in-memory copy of its
-// storage, read by simulations and written by the calls Nido's relayer
-// submits. Values are encoded as the contract encodes them, so the app's
-// generated client parses them for real.
+// The blog contract in memory: a copy of its storage, encoded as the contract
+// encodes it, so the generated client parses its answers for real. The
+// browser tests run the mocked network on it (reads, and the calls Nido's
+// relayer submits); a demo build (./index.ts) reads from it.
 
 type Comment = { author: string; text: string; timestamp: bigint }
 type Post = {
@@ -39,8 +38,8 @@ const address = (a: string) => new Address(a).toScVal()
 
 export class BlogChain {
 	posts: Post[] = []
-	/** The ledger's close time, in seconds. */
-	now = 1_731_500_000n
+	/** The ledger's close time, in seconds: an hour ago, to start. */
+	now = BigInt(Math.floor(Date.now() / 1000) - 3600)
 
 	/** Seed a post by someone else, as if it was already on chain. */
 	seed(title: string, body: string, author: string) {
@@ -72,7 +71,11 @@ export class BlogChain {
 		read: (method: string, args: xdr.ScVal[]) => {
 			const [a, b, c] = args.map((v) => Number(scValToNative(v)))
 			if (method === "post_count") return u32(this.posts.length)
-			if (method === "get_post") return this.post(a!)
+			if (method === "get_post")
+				return this.posts[a! - 1]
+					? this.post(a!)
+					: // Error::PostNotFound, as the contract answers
+						xdr.ScVal.scvError(xdr.ScError.sceContract(7))
 			if (method === "posts") {
 				const first = Math.max(1, a!)
 				const end = Math.min(first + Math.min(b!, 20), this.posts.length + 1)
@@ -130,4 +133,5 @@ export class BlogChain {
 }
 
 /** Someone other than the connected account, to write posts to tip. */
-export const someoneElse = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 3))
+export const someoneElse =
+	"GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC"

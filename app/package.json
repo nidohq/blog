@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@stellar-scaffold/app-lib": "*",
+    "@stellar/stellar-sdk": "^16.4.0",
     "@tanstack/react-query": "^5.90.17",
     "@theahaco/contract-explorer": "^1.3.0",
     "@theahaco/ts-config": "^1.3.0",

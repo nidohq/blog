@@ -1,9 +1,10 @@
 import React from "react"
 import { Link, useParams } from "react-router-dom"
-import { formatTime, formatXlm, grants } from "../blog"
+import { demo, formatTime, formatXlm, grants } from "../blog"
 import { Author } from "../components/Author"
 import { BlogAccess } from "../components/BlogAccess"
 import { CommentForm, CommentList } from "../components/Comments"
+import { DemoClosed } from "../components/DemoBanner"
 import { SessionGate } from "../components/SessionGate"
 import { TipPost } from "../components/TipPost"
 import { usePost } from "../hooks/useBlog"
@@ -53,10 +54,14 @@ const PostPage: React.FC = () => {
 			{/* One gate for both forms: one approval covers posting,
 			    commenting and tipping */}
 			<section className="card" aria-label="Tip and comment">
-				<SessionGate grants={grants} explain={<BlogAccess />} actionsOnly>
-					<TipPost postId={id} author={author} />
-					<CommentForm postId={id} />
-				</SessionGate>
+				{demo ? (
+					<DemoClosed action="tip and comment" />
+				) : (
+					<SessionGate grants={grants} explain={<BlogAccess />} actionsOnly>
+						<TipPost postId={id} author={author} />
+						<CommentForm postId={id} />
+					</SessionGate>
+				)}
 			</section>
 		</div>
 	)

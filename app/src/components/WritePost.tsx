@@ -1,11 +1,12 @@
 import { blog } from "@stellar-scaffold/app-lib/clients"
 import { useState, type FormEvent } from "react"
 import { useNavigate } from "react-router-dom"
-import { MAX_BODY, MAX_TITLE, byteLength, grants } from "../blog"
+import { MAX_BODY, MAX_TITLE, byteLength, demo, grants } from "../blog"
 import { useBlogCall } from "../hooks/useBlogCall"
 import { BlogAccess } from "./BlogAccess"
 import { ByteCount } from "./ByteCount"
 import { CallStatus } from "./CallStatus"
+import { DemoClosed } from "./DemoBanner"
 import { SessionGate } from "./SessionGate"
 
 /** Write a post. For a Nido account it is one device passkey prompt under
@@ -34,6 +35,15 @@ export const WritePost = () => {
 		setBody("")
 		void navigate(`/posts/${done.value}`)
 	}
+
+	if (demo)
+		return (
+			<section className="card write-post">
+				<h2>Write a post</h2>
+				<BlogAccess />
+				<DemoClosed action="post" />
+			</section>
+		)
 
 	return (
 		<section className="card write-post">

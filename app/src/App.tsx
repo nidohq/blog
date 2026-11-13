@@ -2,6 +2,7 @@ import { labPrefix } from "@stellar-scaffold/app-lib"
 import { Link, NavLink, Outlet, Route, Routes } from "react-router-dom"
 import styles from "./App.module.css"
 import ConnectAccount from "./components/ConnectAccount"
+import { DemoBanner } from "./components/DemoBanner"
 import { SessionNote } from "./components/SessionNote"
 import Debug from "./pages/Debug"
 import Home from "./pages/Home"
@@ -41,6 +42,7 @@ const AppLayout = () => (
 		</header>
 
 		<main className={styles.main}>
+			<DemoBanner />
 			<SessionNote />
 			<Outlet />
 		</main>

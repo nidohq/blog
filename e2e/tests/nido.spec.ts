@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test"
-import { BlogChain } from "./blog-chain"
+import { BlogChain } from "../../app/src/demo/blogChain"
 import { connect, mockServices, source } from "./mocks"
 
 // Wallet behaviour every app made from this template keeps, on an empty

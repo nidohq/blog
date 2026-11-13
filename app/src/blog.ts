@@ -1,6 +1,20 @@
 import { xlmTokenId, type Grant } from "@stellar-scaffold/app-lib"
 import { blog } from "@stellar-scaffold/app-lib/clients"
 
+/** The contract ID `npm run prepare:prototype` gives a client that has no
+ * deployment. */
+const PLACEHOLDER = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4"
+
+/**
+ * A demo build: the blog isn't deployed yet, so the app reads seeded posts
+ * from memory (src/demo), shows a banner, and keeps its forms closed. Only a
+ * build with `PUBLIC_BLOG_DEMO=true` whose client has the placeholder ID is
+ * one; with a real contract ID the demo code isn't even in the bundle.
+ */
+export const demo =
+	import.meta.env.PUBLIC_BLOG_DEMO === "true" &&
+	blog.options.contractId === PLACEHOLDER
+
 // What the blog contract accepts (contracts/blog/src/lib.rs), so the forms
 // can say so before anything is signed. Lengths are UTF-8 bytes.
 export const MAX_TITLE = 100
