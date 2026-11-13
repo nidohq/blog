@@ -1,10 +1,11 @@
 import React from "react"
-import { Link, useParams } from "react-router-dom"
+import { Link, useLocation, useParams } from "react-router-dom"
 import { demo, formatTime, formatXlm, grants } from "../blog"
 import { Author } from "../components/Author"
 import { BlogAccess } from "../components/BlogAccess"
 import { CommentForm, CommentList } from "../components/Comments"
 import { DemoClosed } from "../components/DemoBanner"
+import { TxLink } from "../components/Explorer"
 import { SessionGate } from "../components/SessionGate"
 import { TipPost } from "../components/TipPost"
 import { usePost } from "../hooks/useBlog"
@@ -14,6 +15,8 @@ import styles from "./Blog.module.css"
 const PostPage: React.FC = () => {
 	const id = Number(useParams().id)
 	const post = usePost(id)
+	// Set by WritePost when this page opens on the post it just wrote
+	const posted = (useLocation().state as { hash?: string } | null)?.hash
 
 	if (post.isPending) return <p className={styles.Blog}>Reading the post…</p>
 	if (post.isError)
@@ -41,6 +44,12 @@ const PostPage: React.FC = () => {
 				<p className="post-meta">
 					#{id} by <Author address={author} /> · {formatTime(timestamp)}
 				</p>
+				{posted && (
+					<p className="session-note">
+						Posted in transaction <code>{posted.slice(0, 12)}…</code>{" "}
+						<TxLink hash={posted} />
+					</p>
+				)}
 				<div className={styles.body}>{body}</div>
 				<p className="post-meta" data-testid="tipped">
 					{tipped > 0n

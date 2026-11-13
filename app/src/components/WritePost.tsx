@@ -33,7 +33,7 @@ export const WritePost = () => {
 		if (!done) return
 		setTitle("")
 		setBody("")
-		void navigate(`/posts/${done.value}`)
+		void navigate(`/posts/${done.value}`, { state: { hash: done.hash } })
 	}
 
 	if (demo)

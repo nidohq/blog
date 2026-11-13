@@ -16,6 +16,8 @@ import {
 export const account = StrKey.encodeContract(Buffer.alloc(32, 1))
 export const source = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 2))
 export const hash = "ab".repeat(32)
+/** The transaction that applied the approved grants. */
+export const grantHash = "cd".repeat(32)
 // The hosted wallet (app-lib NIDO_BASE) and its account subdomains.
 const nidoWallet = /https:\/\/([^/]+\.)?test\.nido\.fyi\//
 /** The WebAuthn verifier the mocked account names for passkey signers. */
@@ -183,6 +185,41 @@ export async function mockServices(
 					envelopeXdr: envelope,
 					resultXdr: result,
 					resultMetaXdr: meta(returnValue),
+				}
+			} else if (body.method === "getHealth") {
+				response = {
+					status: "healthy",
+					latestLedger: ledger,
+					oldestLedger: 1,
+					ledgerRetentionWindow: 120_960,
+				}
+			} else if (body.method === "getEvents") {
+				// The account's `doc_applied` once grants landed: how the app
+				// finds the approval's transaction
+				response = {
+					latestLedger: ledger,
+					oldestLedger: 1,
+					cursor: `${(BigInt(ledger) << 32n).toString().padStart(19, "0")}-1`,
+					events: landed.length
+						? [
+								{
+									type: "contract",
+									ledger,
+									ledgerClosedAt: "2026-11-13T00:00:00Z",
+									contractId: account,
+									id: "0000000429496729600-0000000000",
+									operationIndex: 0,
+									transactionIndex: 0,
+									topic: [
+										xdr.ScVal.scvSymbol("doc_applied").toXDR("base64"),
+										nativeToScVal(Buffer.alloc(32, 7)).toXDR("base64"),
+									],
+									value: xdr.ScVal.scvVoid().toXDR("base64"),
+									inSuccessfulContractCall: true,
+									txHash: grantHash,
+								},
+							]
+						: [],
 				}
 			} else if (body.method === "getLedgerEntries") {
 				// Classic accounts, and the cap's spending record

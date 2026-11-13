@@ -1,4 +1,5 @@
 import { type SubmitStage } from "@stellar-scaffold/app-lib"
+import { TxLink } from "./Explorer"
 import { Pending, stageText } from "./Pending"
 
 /** What a blog call waits for, why it failed, or the transaction it made. */
@@ -20,7 +21,7 @@ export const CallStatus = ({
 		)}
 		{hash && !stage && !error && (
 			<p className="session-note">
-				Transaction <code>{hash}</code>
+				Transaction <code>{hash.slice(0, 12)}…</code> <TxLink hash={hash} />
 			</p>
 		)}
 	</>

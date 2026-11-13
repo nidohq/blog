@@ -11,6 +11,8 @@ import {
 	account,
 	accountAuth,
 	connect,
+	grantHash,
+	hash,
 	invocation,
 	mockServices,
 	recordStatuses,
@@ -24,6 +26,7 @@ import {
 // storage lives in BlogChain.
 
 const sac = Asset.native().contractId(Networks.TESTNET)
+const expert = "https://stellar.expert/explorer/testnet"
 const makePasskey = "Make a passkey for this app"
 const approve = "Approve with Nido (2 rules, one confirmation)"
 
@@ -121,10 +124,19 @@ test("anyone reads the posts and a post's comments without connecting", async ({
 		"First",
 	])
 	await expect(page.getByText("#1 by")).toContainText("1 comment")
+	// Each author links to their account on stellar.expert
+	await expect(page.locator(".post-meta a").first()).toHaveAttribute(
+		"href",
+		`${expert}/account/${someoneElse}`,
+	)
 	await page.getByRole("link", { name: "First" }).click()
 	await expect(page).toHaveURL(/\/posts\/1$/)
 	await expect(page.getByText("The first post.")).toBeVisible()
 	await expect(page.getByText("Hello from a Nido account")).toBeVisible()
+	await expect(page.locator(".comment .post-meta a")).toHaveAttribute(
+		"href",
+		`${expert}/contract/${account}`,
+	)
 	await expect(page.getByRole("button", { name: "Comment" })).toBeDisabled()
 	await expect(page.getByText("Connect to comment.")).toBeVisible()
 })
@@ -143,6 +155,15 @@ test("a Nido account approves the blog once, then posts, comments and tips with 
 	await expect(access).toContainText("Post, comment and tip on this blog")
 	await expect(access).toContainText("Send XLM to the blog, up to 5 XLM a day")
 	await expect(access).toContainText("paying only the Blog contract")
+	// …and links both contracts on stellar.expert
+	await expect(access.locator("a").first()).toHaveAttribute(
+		"href",
+		new RegExp(`^${expert}/contract/C`),
+	)
+	await expect(access.locator("a").nth(1)).toHaveAttribute(
+		"href",
+		`${expert}/contract/${sac}`,
+	)
 	await expect(
 		page.getByRole("button", { name: "Post", exact: true }),
 	).toBeDisabled()
@@ -173,6 +194,11 @@ test("a Nido account approves the blog once, then posts, comments and tips with 
 		to: blogRule!.target,
 	})
 
+	// The approval's transaction, found from the account's doc_applied event
+	await expect(
+		page.getByRole("link", { name: "Approval on Stellar Expert ↗" }),
+	).toHaveAttribute("href", `${expert}/tx/${grantHash}`)
+
 	let popups = 0
 	page.on("popup", () => popups++)
 
@@ -187,6 +213,11 @@ test("a Nido account approves the blog once, then posts, comments and tips with 
 		"Hello, Stellar",
 	)
 	await expect(page.getByText("#2 by you")).toBeVisible()
+	// …and links the transaction that wrote it
+	await expect(page.getByText(/^Posted in transaction/)).toBeVisible()
+	await expect(
+		page.getByRole("link", { name: "View on Stellar Expert ↗" }),
+	).toHaveAttribute("href", `${expert}/tx/${hash}`)
 	const seen = await statuses(page)
 	expect(seen).toEqual(
 		expect.arrayContaining([
@@ -217,9 +248,19 @@ test("a Nido account approves the blog once, then posts, comments and tips with 
 		"Great read, thanks!",
 	])
 	await expect(page.getByRole("heading", { name: "1 comment" })).toBeVisible()
+	await expect(
+		page.locator(".comment-form + p").getByRole("link", {
+			name: "View on Stellar Expert ↗",
+		}),
+	).toHaveAttribute("href", `${expert}/tx/${hash}`)
 
 	await tip(page, "2")
 	await expect(page.getByText("You tipped the author 2 XLM.")).toBeVisible()
+	await expect(
+		page.locator(".tip-post").getByRole("link", {
+			name: "View on Stellar Expert ↗",
+		}),
+	).toHaveAttribute("href", `${expert}/tx/${hash}`)
 	await expect(page.getByTestId("tipped")).toHaveText(
 		"2 XLM tipped to the author",
 	)

@@ -1,8 +1,11 @@
 import { labPrefix } from "@stellar-scaffold/app-lib"
+import { blog } from "@stellar-scaffold/app-lib/clients"
 import { Link, NavLink, Outlet, Route, Routes } from "react-router-dom"
 import styles from "./App.module.css"
+import { demo } from "./blog"
 import ConnectAccount from "./components/ConnectAccount"
 import { DemoBanner } from "./components/DemoBanner"
+import { AddressLink } from "./components/Explorer"
 import { SessionNote } from "./components/SessionNote"
 import Debug from "./pages/Debug"
 import Home from "./pages/Home"
@@ -49,6 +52,11 @@ const AppLayout = () => (
 
 		<footer className={styles.footer}>
 			<nav className={styles.footerNav}>
+				{!demo && (
+					<AddressLink address={blog.options.contractId}>
+						Blog contract
+					</AddressLink>
+				)}
 				<a
 					href="https://github.com/nidohq/blog"
 					target="_blank"

@@ -20,6 +20,7 @@ import {
 	transactionSource,
 } from "./nido"
 import { allowHttp, networkPassphrase, rpcUrl, stellarNetwork } from "./env"
+import { addressUrl, lastGrantTransaction, transactionUrl } from "./explorer"
 import {
 	activeSession,
 	checkSession,
@@ -314,6 +315,19 @@ export const onWalletChange = (
 
 // Server is configured from the generated clients' options, which don't change at runtime
 const server = new rpc.Server(rpcUrl, { allowHttp })
+
+/** stellar.expert's page for transaction `hash` on the app's network;
+ * undefined on a network it doesn't explore (local). */
+export const txUrl = (hash: string) => transactionUrl(hash, networkPassphrase)
+
+/** stellar.expert's page for an account or contract on the app's network. */
+export const accountUrl = (address: string) =>
+	addressUrl(address, networkPassphrase)
+
+/** The transaction that applied Nido account `account`'s latest grants, from
+ * its `doc_applied` event in the last day: Nido's page doesn't say. */
+export const grantTransaction = (account: string) =>
+	lastGrantTransaction(account, server)
 
 const formatter = new Intl.NumberFormat()
 

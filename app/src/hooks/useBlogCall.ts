@@ -19,7 +19,7 @@ interface Outcome<T> {
 /**
  * One blog call at a time from a form: what it waits for (`stage`), what went
  * wrong (`error`) and the confirmed transaction (`hash`). `run` resolves with
- * `{ value }`, the call's value, or undefined when it failed; on success it reads the blog
+ * `{ value, hash }`, the call's value and transaction, or undefined when it failed; on success it reads the blog
  * and the balance again.
  */
 export function useBlogCall() {
@@ -33,7 +33,7 @@ export function useBlogCall() {
 		build: Parameters<typeof submitCall<Outcome<T>>>[1],
 		/** A sentence for a refusal this form explains itself, such as a cap. */
 		explain?: (error: unknown) => string | undefined,
-	): Promise<{ value: T } | undefined> => {
+	): Promise<{ value: T; hash: string } | undefined> => {
 		if (!address) {
 			setError("Connect a wallet first.")
 			return undefined
@@ -52,7 +52,7 @@ export function useBlogCall() {
 			}
 			void refresh()
 			void updateBalances()
-			return { value: result.unwrap() }
+			return { value: result.unwrap(), hash }
 		} catch (e) {
 			console.error(e)
 			setError(explain?.(e) ?? describe(e, blogErrors))
