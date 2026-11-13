@@ -1,0 +1,97 @@
+version: 2
+
+# Scaffold CLI Configuration
+project:
+  # Your Rust/Soroban contract source.
+  contracts-dir: contracts
+
+  # Generated TypeScript packages to communicate with your contracts
+  # imported as `@stellar-scaffold/app-lib/clients`:
+  #   - app-lib/clients/<name>/   one generated binding package per contract
+  #   - app-lib/clients/index.ts  instantiates and exports every client
+  #
+  # To customize a client, import it into your own code under app/ instead of
+  # editing the generated file. Everything here is gitignored except .gitkeep.
+  clients-dir: app-lib/clients
+  package-manager: npm@11.12.1
+
+# Stellar Networks used by your app. Pick one with `--network <name>` or
+# STELLAR_NETWORK; the default is `local`. Built-in names (local, testnet,
+# futurenet, mainnet) get their RPC URL and passphrase from stellar-cli.
+networks:
+  # Using the Stellar-Quickstart Docker container
+  local:
+    # Created and funded on first build, the first account will sign deploys
+    accounts: [me]
+
+  # Testnet is staging: a dry run for mainnet. Deploy there deliberately, then
+  # point contracts at those deployments below. Public networks never deploy
+  # from `build` or `watch` unless you opt in with `allow-deploy: true`.
+  testnet:
+    # Funded with Friendbot on first build. Keep testnet keys separate from
+    # local ones, as you would for mainnet.
+    accounts: [testnet-user]
+
+  # Your own testnet deployments, redeployed freely while you develop:
+  # `npm run deploy:testnet` builds, deploys, and writes the clients for it.
+  testnet-dev:
+    extends: testnet
+    allow-deploy: true
+
+  # Stellar mainnet, real XLM. Nothing deploys here from build or watch:
+  # `npm run deploy:mainnet -- <key-alias>` deploys the blog with your own
+  # funded key and pins it under contracts.blog.networks.mainnet, and
+  # `npm run dev:mainnet` runs the app against it (scripts/mainnet.mjs).
+  mainnet:
+    rpc-url: https://mainnet.sorobanrpc.com
+    accounts: []
+
+# Contracts to build, deploy, and generate clients for. Keys directly under a
+# contract are defaults for every network it lists; entries under `networks:`
+# override them. A contract only exists on the networks it lists, so building
+# another network skips it and leaves it out of the generated clients.
+contracts:
+  blog:
+    networks:
+      local:
+        type: workspace
+        source: blog # the crate's package name
+
+      # Public networks point at a deployment you made and reviewed
+      # separately, rather than deploying from the dev loop.
+      # `npm run deploy:testnet` deploys testnet-dev, then pins the new ID
+      # here, under `testnet:`, the network `npm run dev` and the Pages
+      # workflow use.
+      testnet:
+        type: contract
+        source: CCSJBIEAGVGCXXE2XZ4CTNQIL4XZAJJ3J7AW463V4LPF7AJDPTG3VIYI
+      testnet-dev:
+        type: workspace
+        source: blog
+      # `npm run deploy:mainnet -- <key-alias>` pins mainnet: here.
+
+  fungible-allowlist:
+    networks:
+      local:
+        type: workspace
+        source: fungible-allowlist-example
+        args:
+          name: ExampleToken
+          symbol: EXT
+          admin: ${account.me}
+          manager: ${account.me}
+          initial_supply: 1000000000000000000000000
+      # testnet:
+      #   type: contract
+      #   source: C... # your deployment
+
+  nft-enumerable:
+    networks:
+      local:
+        type: workspace
+        source: nft-enumerable-example
+        args:
+          uri: https://example.com/nft/
+          name: ExampleNFT
+          symbol: ENFT
+          owner: ${account.me}

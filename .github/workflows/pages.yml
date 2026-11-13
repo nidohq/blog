@@ -1,0 +1,60 @@
+name: Pages
+
+# Builds the app and publishes it to the root of the gh-pages branch, which
+# GitHub Pages serves at https://nidohq.github.io/blog/. Pull request
+# previews (pr-preview.yml) live under /pr-preview/ on the same branch;
+# clean-exclude keeps this deploy from wiping them.
+# Repo setting: Pages source = "Deploy from a branch", gh-pages, / (root).
+#
+# With the blog pinned under `testnet:` in scaffold.yml, the site calls that
+# deployment. Until then it is a read-only demo (PUBLIC_BLOG_DEMO, seeded
+# posts and a banner), since there is no contract to call.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      STELLAR_NETWORK: testnet
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 # zizmor: ignore[artipacked]
+        # the deploy action pushes gh-pages with the checkout token, so
+        # credentials must persist for this job (unlike the rest of CI).
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      # The toolchain and wasm32v1-none target from rust-toolchain.toml:
+      # the clients are compiled from the workspace contracts
+      - run: rustup toolchain install
+      # Pinned by SHA, so the action can't read the version from its ref
+      - uses: stellar/stellar-cli@5a7c5fe76530bf4248477ac812fc757146b98cc4 # v27.0.0
+        with:
+          version: 27.0.0
+      # The README quick start, then the checks
+      - run: npm run tools:scaffold
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run test:unit
+      - name: Build
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
+        run: scripts/build-site.sh
+      - uses: JamesIves/github-pages-deploy-action@fa24774553152dd7873cd16ebd8d959b010c5445 # v4.9.0
+        with:
+          folder: app/dist
+          branch: gh-pages
+          clean-exclude: pr-preview
+          force: false
