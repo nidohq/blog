@@ -7,9 +7,11 @@ export const shortAddress = (addr: string): string =>
 
 /** Human-friendly network label (STANDALONE → Local; otherwise capitalized). */
 export const formatNetworkName = (name: string): string =>
-	name === "STANDALONE"
-		? "Local"
-		: name.charAt(0).toUpperCase() + name.slice(1).toLowerCase()
+	name === "PUBLIC"
+		? "Mainnet"
+		: name === "STANDALONE"
+			? "Local"
+			: name.charAt(0).toUpperCase() + name.slice(1).toLowerCase()
 
 /** Reverse lookup of a network passphrase to its `Networks` enum key. */
 const passphraseToName: Record<string, string> = Object.fromEntries(

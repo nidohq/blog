@@ -113,7 +113,12 @@ const networkToId = (network: StellarNetwork): NetworkType => {
 
 export const network: Network = {
 	id: networkToId(stellarNetwork),
-	label: stellarNetwork.toLowerCase(),
+	label:
+		stellarNetwork === "PUBLIC"
+			? "Mainnet"
+			: stellarNetwork === "TESTNET"
+				? "Testnet"
+				: stellarNetwork.toLowerCase(),
 	passphrase: networkPassphrase,
 	rpcUrl: rpcUrl,
 }

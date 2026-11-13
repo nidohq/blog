@@ -1,4 +1,5 @@
 import {
+	networkStatus,
 	checkAppSession,
 	createAppPasskey,
 	describe,
@@ -36,10 +37,12 @@ export const SessionGate = ({
 	actionsOnly?: boolean
 	children: ReactNode
 }) => {
-	const { address } = useWallet()
+	const { address, networkPassphrase } = useWallet()
 	const { addNotification } = useNotification()
 	const status = useSessionStatus(address, grants)
 	const [busy, setBusy] = useState<string>()
+	const network = networkStatus(address, networkPassphrase)
+	if (network.state === "mismatch") return <p role="alert">{network.title}</p>
 	if (!address || !status || status.state === "ready") return children
 
 	const fail = (error: unknown) => {

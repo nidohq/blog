@@ -109,20 +109,20 @@ export function parseSignReturn(search: string): SignReturn | null {
 /**
  * Load the C-address the user last selected for this dApp origin, or `null`.
  */
-export function loadCachedAddress(): string | null {
-	const v = localStorage.getItem(ADDRESS_CACHE_KEY)
+export function loadCachedAddress(scope = ""): string | null {
+	const v = localStorage.getItem(ADDRESS_CACHE_KEY + scope)
 	return v && isContractId(v) ? v : null
 }
 
 /** Cache the user's selected C-address at this dApp origin. */
-export function saveCachedAddress(address: string): void {
+export function saveCachedAddress(address: string, scope = ""): void {
 	if (!isContractId(address)) {
 		throw new Error(`saveCachedAddress: not a contract id: ${address}`)
 	}
-	localStorage.setItem(ADDRESS_CACHE_KEY, address)
+	localStorage.setItem(ADDRESS_CACHE_KEY + scope, address)
 }
 
 /** Forget the cached address (e.g. on an explicit disconnect). */
-export function clearCachedAddress(): void {
-	localStorage.removeItem(ADDRESS_CACHE_KEY)
+export function clearCachedAddress(scope = ""): void {
+	localStorage.removeItem(ADDRESS_CACHE_KEY + scope)
 }

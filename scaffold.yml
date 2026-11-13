@@ -38,12 +38,13 @@ networks:
     extends: testnet
     allow-deploy: true
 
-  # mainnet:
-  #   # stellar-cli has no default mainnet RPC; bring your own
-  #   rpc-url: https://your-rpc-provider.example
-  #   rpc-headers:
-  #     Authorization: "Bearer ${env.MAINNET_RPC_TOKEN}"
-  #   accounts: [mainnet-user]
+  # Stellar mainnet, real XLM. Nothing deploys here from build or watch:
+  # `npm run deploy:mainnet -- <key-alias>` deploys the blog with your own
+  # funded key and pins it under contracts.blog.networks.mainnet, and
+  # `npm run dev:mainnet` runs the app against it (scripts/mainnet.mjs).
+  mainnet:
+    rpc-url: https://mainnet.sorobanrpc.com
+    accounts: []
 
 # Contracts to build, deploy, and generate clients for. Keys directly under a
 # contract are defaults for every network it lists; entries under `networks:`
@@ -67,9 +68,7 @@ contracts:
       testnet-dev:
         type: workspace
         source: blog
-      # mainnet:
-      #   type: contract
-      #   source: C...
+      # `npm run deploy:mainnet -- <key-alias>` pins mainnet: here.
 
   fungible-allowlist:
     networks:

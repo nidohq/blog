@@ -132,7 +132,10 @@ export class NidoModule implements ModuleInterface {
 			network:
 				this.networkPassphrase === DEFAULT_NETWORK_PASSPHRASE
 					? "testnet"
-					: "unknown",
+					: this.networkPassphrase ===
+						  "Public Global Stellar Network ; September 2015"
+						? "mainnet"
+						: "unknown",
 			networkPassphrase: this.networkPassphrase,
 		}
 	}
@@ -152,7 +155,7 @@ export class NidoModule implements ModuleInterface {
 		path?: string
 		skipRequestAccess?: boolean
 	}): Promise<{ address: string }> {
-		const cached = loadCachedAddress()
+		const cached = loadCachedAddress(this.cacheScope())
 		if (params?.skipRequestAccess) {
 			if (cached) return { address: cached }
 			throw new Error(
@@ -173,7 +176,7 @@ export class NidoModule implements ModuleInterface {
 			throw new Error("Nido: account selection was cancelled.")
 		if (result.status === "error") throw new Error(`Nido: ${result.error}`)
 
-		saveCachedAddress(result.address)
+		saveCachedAddress(result.address, this.cacheScope())
 		return { address: result.address }
 	}
 
@@ -247,13 +250,19 @@ export class NidoModule implements ModuleInterface {
 
 	/** The kit calls this on disconnect; drop the cached address. */
 	async disconnect(): Promise<void> {
-		clearCachedAddress()
+		clearCachedAddress(this.cacheScope())
 	}
 
 	// onChange has no async state to report for a redirect wallet; intentionally
 	// omitted (it's optional on the interface).
 
 	// --- internals ---
+
+	private cacheScope(): string {
+		return this.networkPassphrase === DEFAULT_NETWORK_PASSPHRASE
+			? ""
+			: `:${this.networkPassphrase}:${apexOrigin(this.base)}`
+	}
 
 	private dappOrigin(): string {
 		return this.dappOriginOverride ?? window.location.origin
@@ -266,7 +275,7 @@ export class NidoModule implements ModuleInterface {
 	/** Use the explicit `opts.address`, else the cached one, else prompt the picker. */
 	private async resolveAccount(address?: string): Promise<string> {
 		if (address) return address
-		const cached = loadCachedAddress()
+		const cached = loadCachedAddress(this.cacheScope())
 		if (cached) return cached
 		return (await this.getAddress()).address
 	}
@@ -287,7 +296,7 @@ export class NidoModule implements ModuleInterface {
 			// The user wants another account. Forget the bound one so the next
 			// connect doesn't fast-path back to it, and reject with a distinct,
 			// documented error the dApp can catch (re-run connect, rebuild the tx).
-			clearCachedAddress()
+			clearCachedAddress(this.cacheScope())
 			throw new AccountSwitchRequestedError()
 		}
 		if (parsed.status === "error") throw new Error(`Nido: ${parsed.error}`)

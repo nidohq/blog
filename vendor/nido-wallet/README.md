@@ -20,6 +20,8 @@ Local changes:
   the later `signTransaction` reuses it instead of being popup-blocked after the
   dApp's RPC simulation.
 - Export the TypeScript source directly for Vite and mark the package private.
+- Isolate non-testnet cached addresses by network and wallet origin, and label
+  the public network as mainnet.
 - Apply the template's formatter.
 
 The source snapshot handles `nido_submitted` responses, unlike published 0.1.0.

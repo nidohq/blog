@@ -7,11 +7,15 @@ import {
 	rpc,
 } from "@stellar/stellar-sdk"
 import {
+	nidoDeployment,
+	validateNidoDeployment,
 	createNidoModules,
 	smartAccountBalance,
 	submitSmartAccount,
 	transactionSource,
 } from "./nido"
+
+import { saveCachedAddress } from "../vendor/nido-wallet/handover"
 
 const address = StrKey.encodeContract(Buffer.alloc(32, 1))
 const hash = "ab".repeat(32)
@@ -37,15 +41,62 @@ const fixture = () => {
 afterEach(() => vi.useRealTimers())
 
 describe("Nido integration boundaries", () => {
-	it("registers Nido only on its supported network", () => {
+	it("registers Nido on testnet and mainnet only", () => {
+		expect(createNidoModules(Networks.PUBLIC)[0]?.productUrl).toBe(
+			"https://nido.fyi",
+		)
 		expect(createNidoModules(Networks.TESTNET)[0]?.productId).toBe("nido")
-		for (const network of [
-			Networks.PUBLIC,
-			Networks.STANDALONE,
-			Networks.FUTURENET,
-		]) {
+		for (const network of [Networks.STANDALONE, Networks.FUTURENET]) {
 			expect(createNidoModules(network)).toEqual([])
 		}
+	})
+	it("pairs mainnet endpoints and rejects stale testnet overrides", async () => {
+		expect(nidoDeployment(Networks.PUBLIC)).toEqual({
+			base: "https://nido.fyi",
+			relayer: "https://nido-mainnet.fly.dev",
+		})
+		expect(
+			await createNidoModules(Networks.PUBLIC)[0]!.getNetwork(),
+		).toMatchObject({ networkPassphrase: Networks.PUBLIC })
+		expect(() =>
+			validateNidoDeployment(
+				Networks.PUBLIC,
+				"https://test.nido.fyi",
+				"https://nido-mainnet.fly.dev",
+			),
+		).toThrow("mismatch")
+		expect(() =>
+			validateNidoDeployment(
+				Networks.PUBLIC,
+				"https://nido.fyi",
+				"https://nido.fly.dev",
+			),
+		).toThrow("mismatch")
+		expect(() =>
+			validateNidoDeployment(
+				Networks.TESTNET,
+				"https://nido.fyi",
+				"https://nido.fly.dev",
+			),
+		).toThrow("mismatch")
+	})
+	it("does not reconnect a cached testnet wallet on mainnet", async () => {
+		localStorage.clear()
+		saveCachedAddress(address)
+		await expect(
+			createNidoModules(Networks.TESTNET)[0]!.getAddress({
+				skipRequestAccess: true,
+			}),
+		).resolves.toEqual({ address })
+		await expect(
+			createNidoModules(Networks.PUBLIC)[0]!.getAddress({
+				skipRequestAccess: true,
+			}),
+		).rejects.toThrow("no account connected")
+		expect(
+			await createNidoModules(Networks.PUBLIC)[0]!.getNetwork(),
+		).toMatchObject({ network: "mainnet" })
+		localStorage.clear()
 	})
 	it("keeps C-addresses out of the transaction source", () => {
 		expect(transactionSource(address)).toBeUndefined()

@@ -138,8 +138,16 @@ export interface InstalledRule {
 	validUntil: number | undefined
 }
 
-const STORAGE = "scaffold:nido-session:"
-const PENDING = `${STORAGE}pending`
+let STORAGE = "scaffold:nido-session:"
+let PENDING = `${STORAGE}pending`
+/** Separate mainnet approvals from legacy testnet approvals on the same origin. */
+export function setSessionNetwork(passphrase: string) {
+	STORAGE =
+		passphrase === "Test SDF Network ; September 2015"
+			? "scaffold:nido-session:"
+			: `scaffold:nido-session:${passphrase}:`
+	PENDING = `${STORAGE}pending`
+}
 const CHANGE = "scaffold:nido-session-change"
 const MAX_LABEL_BYTES = 20
 /** The most grants Nido's page takes in one request. */

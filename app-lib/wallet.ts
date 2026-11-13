@@ -11,8 +11,8 @@ import {
 	reserveCeremonyPopup,
 } from "@nidohq/stellar-wallets-kit-module"
 import {
-	NIDO_BASE,
-	NIDO_RELAYER,
+	nidoDeployment,
+	validateNidoDeployment,
 	createNidoModules,
 	isSmartAccount,
 	smartAccountBalance,
@@ -22,6 +22,7 @@ import {
 import { allowHttp, networkPassphrase, rpcUrl, stellarNetwork } from "./env"
 import { addressUrl, lastGrantTransaction, transactionUrl } from "./explorer"
 import {
+	setSessionNetwork,
 	activeSession,
 	checkSession,
 	createSessionPasskey,
@@ -65,12 +66,16 @@ const CUSTOM_NETWORK_WALLETS = new Set(["freighter", "xbull", "hana"])
 export const xlmTokenId = Asset.native().contractId(networkPassphrase)
 
 /** The Nido deployment this app connects to (`PUBLIC_NIDO_BASE`). */
-export const nidoBase: string = import.meta.env.PUBLIC_NIDO_BASE || NIDO_BASE
+const deployment = nidoDeployment(networkPassphrase)
+export const nidoBase: string =
+	import.meta.env.PUBLIC_NIDO_BASE || deployment.base
 
 /** The relayer that submits session calls and pays their fees
  * (`PUBLIC_NIDO_RELAYER`). */
 export const nidoRelayer: string =
-	import.meta.env.PUBLIC_NIDO_RELAYER || NIDO_RELAYER
+	import.meta.env.PUBLIC_NIDO_RELAYER || deployment.relayer
+validateNidoDeployment(networkPassphrase, nidoBase, nidoRelayer)
+setSessionNetwork(networkPassphrase)
 
 StellarWalletsKit.init({
 	network: networkPassphrase as Networks,
@@ -197,6 +202,14 @@ export async function submitCall<T>(
 	const release = reserveSigningPopup(address)
 	try {
 		options.onStage?.("preparing")
+		const reported = await getWalletNetwork()
+		if (
+			reported.networkPassphrase &&
+			reported.networkPassphrase !== networkPassphrase
+		)
+			throw new Error(
+				"Wallet network mismatch. Connect a wallet on the app’s network first.",
+			)
 		return await submitContract(
 			await build(transactionSource(address)),
 			address,

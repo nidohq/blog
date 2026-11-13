@@ -101,6 +101,43 @@ sends you to create one: one passkey, and it arrives with 5 test XLM. Then make
 the app's passkey, approve the blog in Nido's popup (one confirmation), and
 post. To tip, open a post by someone else.
 
+Each post, comment and tip the app confirms, and the approval itself, links to
+its transaction on [Stellar Expert](https://stellar.expert) for the network the
+app runs on (`/explorer/testnet/` or `/explorer/public/`), as do authors and the
+blog contract. Nido's approval page answers only "approved", so the app finds
+the approval's transaction from the account's `doc_applied` event.
+
+## Run it on mainnet, locally
+
+Real XLM, your own key. Hosted Nido's mainnet wallet is <https://nido.fyi>, with
+its relayer at `https://nido-mainnet.fly.dev`; tips pay in mainnet's XLM
+(`CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA`). The blog isn't on
+mainnet until you deploy it:
+
+```sh
+npm run tools:scaffold && npm ci
+npm run deploy:mainnet -- <your-key-alias>   # asks before it sends; pins under mainnet:
+npm run dev:mainnet                          # http://localhost:5421
+```
+
+`<your-key-alias>` is a `stellar keys` identity holding mainnet XLM, in your
+global Stellar config or added to this project with
+`npm run stellar -- keys add <alias> --secret-key` (it prompts; nothing echoes).
+`deploy:mainnet` checks that the RPC is mainnet and that the wasm pays in
+mainnet's XLM, shows the deployer and the code hash, and sends nothing until you
+type `deploy`. It then uploads and creates the contract (fees in real XLM), pins
+its ID under `contracts.blog.networks.mainnet` in `scaffold.yml`, and writes the
+mainnet client. `dev:mainnet` checks the pinned contract is live, writes the
+client, and starts the app against it. `npm run dev` goes back to testnet.
+
+Open <http://localhost:5421>, press Connect and choose Nido: it opens nido.fyi.
+The approval is the same two rules, now on mainnet, with tips capped at 5 XLM a
+day. Simulated on 2026-11-13 against a live mainnet Nido account, the blog's
+grant writes 6.6 to 9.3 KB (the per-transaction limit is 132 KB) and needs no
+restore: mainnet's Perch contracts stay live until about 2027-02-21. Sessions
+and the connected account are kept apart per network, so testnet and mainnet
+don't share approvals on `localhost:5421`.
+
 ## Tests
 
 `npm run test:e2e` runs [`e2e/tests/blog.spec.ts`](e2e/tests/blog.spec.ts) with

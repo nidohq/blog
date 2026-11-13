@@ -21,11 +21,38 @@ export const NIDO_BASE = "https://test.nido.fyi"
 /** Hosted Nido's testnet relayer; apps override it with `PUBLIC_NIDO_RELAYER`. */
 export const NIDO_RELAYER = "https://nido.fly.dev"
 
-// Hosted Nido is testnet-only. Do not advertise it on incompatible networks.
-export function createNidoModules(passphrase: string, base = NIDO_BASE) {
-	return passphrase === Networks.TESTNET
+/** Keep wallet and relayer defaults paired with the generated client's network. */
+export function nidoDeployment(passphrase: string) {
+	if (passphrase === Networks.PUBLIC)
+		return { base: "https://nido.fyi", relayer: "https://nido-mainnet.fly.dev" }
+	return { base: NIDO_BASE, relayer: NIDO_RELAYER }
+}
+
+export function createNidoModules(
+	passphrase: string,
+	base = nidoDeployment(passphrase).base,
+) {
+	return [Networks.TESTNET, Networks.PUBLIC].includes(passphrase as Networks)
 		? [new NidoModule({ base, networkPassphrase: passphrase })]
 		: []
+}
+
+/** Known hosted endpoints must never cross networks, including copied .env files. */
+export function validateNidoDeployment(
+	passphrase: string,
+	base: string,
+	relayer: string,
+) {
+	const other = nidoDeployment(
+		passphrase === Networks.PUBLIC ? Networks.TESTNET : Networks.PUBLIC,
+	)
+	if (
+		new URL(base).origin === other.base ||
+		new URL(relayer).origin === other.relayer
+	)
+		throw new Error(
+			"Nido wallet/relayer network mismatch. Remove stale PUBLIC_NIDO overrides or select endpoints for this build's network.",
+		)
 }
 
 // A C-address authorizes a contract call; it cannot source a transaction.
