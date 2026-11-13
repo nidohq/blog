@@ -1,8 +1,9 @@
 # Blog: a Nido example with comments and tips
 
-**Live: <https://nidohq.github.io/blog/>** (Stellar testnet). Until the blog is
-deployed to testnet it is a read-only demo with seeded posts; see
-[Deploying to GitHub Pages](#deploying-to-github-pages).
+**Live: <https://nidohq.github.io/blog/>** (Stellar testnet), calling the blog
+at
+[`CCSJBIEA…3VIYI`](https://stellar.expert/explorer/testnet/contract/CCSJBIEAGVGCXXE2XZ4CTNQIL4XZAJJ3J7AW463V4LPF7AJDPTG3VIYI),
+pinned under `testnet:` in [`scaffold.yml`](scaffold.yml).
 
 An example Stellar app made from
 [nidohq/scaffold-template](https://github.com/nidohq/scaffold-template): write
@@ -147,15 +148,17 @@ router's, and the build copies `index.html` to `404.html` so a refresh on
 `/posts/3` still loads the main site. Pages serves only the root's `404.html`,
 so in a preview, open posts from its own links rather than refreshing them.
 
-**Demo until the blog is on testnet.** The site needs a contract to call, and
-nothing in this repository has deployed one yet. Until `scaffold.yml` pins a
-`testnet:` ID for the blog, `build-site.sh` builds a read-only demo: prototype
-clients with a placeholder ID and `PUBLIC_BLOG_DEMO=true`, so the app reads
-seeded posts and comments from the same in-memory blog the browser tests use
-([`app/src/demo`](app/src/demo)), says "Demo data: the contract is not deployed
-yet" on every page, and keeps its post, comment and tip forms closed. With a
-pin, it builds against the real contract, the demo code is not in the bundle,
-and the script fails the build if it finds it there. To leave the demo:
+**Demo until the blog is on testnet.** The site needs a contract to call. Since
+2026-11-13 `scaffold.yml` pins one; after a testnet reset, or in a copy of this
+repository with no deployment, the site falls back to a demo. Until
+`scaffold.yml` pins a `testnet:` ID for the blog, `build-site.sh` builds a
+read-only demo: prototype clients with a placeholder ID and
+`PUBLIC_BLOG_DEMO=true`, so the app reads seeded posts and comments from the
+same in-memory blog the browser tests use ([`app/src/demo`](app/src/demo)), says
+"Demo data: the contract is not deployed yet" on every page, and keeps its post,
+comment and tip forms closed. With a pin, it builds against the real contract,
+the demo code is not in the bundle, and the script fails the build if it finds
+it there. To leave the demo:
 
 1. From a checkout of `main`, run `npm run tools:scaffold && npm ci`, then
    `npm run deploy:testnet`. It deploys `contracts/blog` to testnet with a

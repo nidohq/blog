@@ -61,6 +61,9 @@ contracts:
       # `npm run deploy:testnet` deploys testnet-dev, then pins the new ID
       # here, under `testnet:`, the network `npm run dev` and the Pages
       # workflow use.
+      testnet:
+        type: contract
+        source: CCSJBIEAGVGCXXE2XZ4CTNQIL4XZAJJ3J7AW463V4LPF7AJDPTG3VIYI
       testnet-dev:
         type: workspace
         source: blog
