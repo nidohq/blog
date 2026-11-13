@@ -220,6 +220,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "blog"
+version = "0.0.2"
+dependencies = [
+ "soroban-sdk",
+ "stellar-registry",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -699,15 +707,6 @@ dependencies = [
  "ff",
  "rand_core",
  "subtle",
-]
-
-[[package]]
-name = "guess-the-number"
-version = "0.0.2"
-dependencies = [
- "soroban-sdk",
- "stellar-registry",
- "stellar-xdr 26.0.1",
 ]
 
 [[package]]

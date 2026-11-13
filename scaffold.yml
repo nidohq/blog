@@ -50,30 +50,20 @@ networks:
 # override them. A contract only exists on the networks it lists, so building
 # another network skips it and leaves it out of the generated clients.
 contracts:
-  guess-the-number:
+  blog:
     networks:
       local:
         type: workspace
-        source: guess-the-number # the crate's package name
-        args:
-          admin: ${account.me}
-        # Contract methods called after deploy; they take no arguments.
-        after-deploy: [reset]
+        source: blog # the crate's package name
 
       # Public networks point at a deployment you made and reviewed
-      # separately, rather than deploying from the dev loop. This one is a
-      # shared sample deployment (2026-10-22) so the template works on testnet
-      # straight away; testnet resets remove it. Deploy your own with
-      # testnet-dev, then paste its ID here.
-      testnet:
-        type: contract
-        source: CBY4S4Z2TI5HXUKSHFV35PKHSIN4YIXU7MYS44UKY23ONSV7QUECYGUW
+      # separately, rather than deploying from the dev loop.
+      # `npm run deploy:testnet` deploys testnet-dev, then pins the new ID
+      # here, under `testnet:`, the network `npm run dev` and the Pages
+      # workflow use.
       testnet-dev:
         type: workspace
-        source: guess-the-number
-        args:
-          admin: ${account.testnet-user}
-        after-deploy: [reset]
+        source: blog
       # mainnet:
       #   type: contract
       #   source: C...

@@ -1,14 +1,17 @@
 import { expect, test } from "@playwright/test"
+import { BlogChain } from "./blog-chain"
 import { connect, mockServices, source } from "./mocks"
 
-// Wallet behaviour every app made from this template keeps. The sample's
-// session flow is in guess.spec.ts.
+// Wallet behaviour every app made from this template keeps, on an empty
+// blog. The blog's session flow is in blog.spec.ts.
+
+const emptyBlog = () => new BlogChain().services
 
 test("Nido appears in the real wallet picker alongside standard wallets", async ({
 	page,
 	context,
 }) => {
-	await mockServices(context)
+	await mockServices(context, emptyBlog())
 	await page.goto("/")
 	await page.getByRole("button", { name: "Connect", exact: true }).click()
 	await expect(page.getByText("Nido", { exact: true })).toBeVisible()
@@ -25,7 +28,7 @@ test("connect, balance, reload without popup, and disconnect", async ({
 	page,
 	context,
 }) => {
-	const { calls } = await mockServices(context)
+	const { calls } = await mockServices(context, emptyBlog())
 	await connect(page)
 	await expect(page.getByRole("button", { name: "Fund Account" })).toHaveCount(
 		0,
@@ -52,7 +55,7 @@ test("classic accounts retain the Friendbot button", async ({
 	page,
 	context,
 }) => {
-	await mockServices(context)
+	await mockServices(context, emptyBlog())
 	await page.addInitScript((address) => {
 		localStorage.setItem("@StellarWalletsKit/activeAddress", address)
 		localStorage.setItem("@StellarWalletsKit/selectedModuleId", "albedo")

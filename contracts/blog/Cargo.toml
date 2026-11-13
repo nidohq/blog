@@ -1,11 +1,15 @@
 [package]
-name = "check-in"
-description = "Any account checks in, and the account itself authorizes it"
+name = "blog"
+description = "Posts, comments on them, and XLM tips to their authors"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 publish = false
 version.workspace = true
+
+[package.metadata.stellar]
+# Set contract metadata for authors, homepage, and version based on the Cargo.toml package values
+cargo_inherit = true
 
 [lib]
 crate-type = ["cdylib"]
@@ -13,6 +17,7 @@ doctest = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
+stellar-registry = { workspace = true }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }

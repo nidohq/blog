@@ -1,4 +1,4 @@
-# This job creates a GitHub Release for the guess-the-number contract:
+# This job creates a GitHub Release for the blog contract:
 #
 # - Add `source_repo` & `home_domain` metadata to wasm
 # - Publish `.wasm` file to GH Release
@@ -8,7 +8,7 @@
 # and use `stellar contract upload` to get that wasm on-chain, or `stellar
 # registry publish` to both get it on-chain and give it a name/version via
 # Stellar Registry.
-name: "GH Release: guess-the-number"
+name: "GH Release: blog"
 
 on:
   push:
@@ -47,7 +47,7 @@ jobs:
       release_name: ${{ github.ref_name }}
       release_description: "Release ${{ github.ref_name }}"
       home_domain: "stellarscaffold.org"
-      relative_path: "contracts/guess-the-number"
-      package: "guess-the-number"
+      relative_path: "contracts/blog"
+      package: "blog"
     secrets:
       release_token: ${{ secrets.GITHUB_TOKEN }}

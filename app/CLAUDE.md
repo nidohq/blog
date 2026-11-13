@@ -18,7 +18,9 @@ smart-account rules are in [`../AGENTS.md`](../AGENTS.md); read it first.
 
 ## Routes
 
-- `/` — `src/pages/Home.tsx`
+- `/` — `src/pages/Home.tsx`, the posts and a form to write one
+- `/posts/:id` — `src/pages/PostPage.tsx`, a post, its comments, tip and comment
+  forms
 - `/debug`, `/debug/:contractName` — `src/pages/Debug.tsx`, the contract
   explorer for every generated client
 

@@ -1,5 +1,5 @@
 {
-  "name": "@stellar-scaffold/ui",
+  "name": "blog-example",
   "version": "0.0.0",
   "private": true,
   "scripts": {
@@ -19,7 +19,6 @@
     "test:e2e": "npm test --workspace e2e",
     "test-browser": "node scripts/test-browser.mjs",
     "link-clients": "node scripts/link-clients.mjs",
-    "new-app": "node scripts/new-app.mjs",
     "prepare:prototype": "node scripts/prepare-prototype.mjs",
     "preview:prototype": "npm exec --workspace app -- vite --host 127.0.0.1 --port 5180"
   },

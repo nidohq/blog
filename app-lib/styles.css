@@ -201,37 +201,109 @@ dialog code {
 	word-break: break-all;
 }
 
-/* GuessTheNumber */
-.guess-the-number {
-	margin-bottom: 2rem;
+/* The blog's forms */
+textarea {
+	font-family: inherit;
+	font-size: 1rem;
+	padding: 0.5rem 0.75rem;
+	border-radius: var(--radius);
+	border: 1px solid var(--color-border);
+	background: var(--color-bg);
+	color: var(--color-text);
+	width: 100%;
+	resize: vertical;
 }
 
-.guess-the-number form {
-	display: flex;
+textarea:focus {
+	outline: 2px solid var(--color-accent);
+	outline-offset: -1px;
+}
+
+.write-post form,
+.comment-form {
+	display: grid;
 	gap: 1rem;
-	align-items: stretch;
+	justify-items: start;
 	margin-bottom: 1rem;
 }
 
-.guess-the-number form input {
-	flex: 1;
+.write-post label,
+.comment-form label {
+	display: grid;
+	gap: 0.25rem;
+	width: 100%;
+	font-weight: 500;
 }
 
-.guess-result {
-	padding: 0.5rem 1rem;
+.byte-count {
+	font-size: 0.8rem;
+	font-weight: normal;
+	color: var(--color-text-muted);
 }
 
-.guess-result p {
+.byte-count--over {
+	color: var(--color-error);
+}
+
+.post-meta {
+	font-size: 0.875rem;
+	color: var(--color-text-muted);
 	margin: 0;
 }
 
-.guess-result--success {
-	border-color: var(--color-success);
+.blog-access ul {
+	padding-left: 1.25rem;
+}
+
+.blog-access li {
+	margin-bottom: 0.5rem;
+}
+
+.comment-list {
+	list-style: none;
+	padding: 0;
+}
+
+.comment {
+	border-top: 1px solid var(--color-border);
+	padding: 0.75rem 0;
+}
+
+.comment-text {
+	margin: 0.25rem 0 0;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.tip-post form {
+	display: flex;
+	align-items: end;
+	gap: 1rem;
+	margin-bottom: 1rem;
+}
+
+.tip-post label {
+	display: grid;
+	gap: 0.25rem;
+	font-weight: 500;
+}
+
+.tip-amount {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-weight: normal;
+}
+
+.tip-amount input {
+	max-width: 8rem;
+}
+
+.tip-sent {
 	color: var(--color-success);
 }
 
-.guess-result--failure {
-	border-color: var(--color-error);
+.call-error {
 	color: var(--color-error);
 }
 

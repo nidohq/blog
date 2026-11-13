@@ -9,6 +9,12 @@ states the same rules in fewer words.
 Everything runs on testnet: hosted Nido is testnet-only. Use throwaway testnet
 keys only, never mainnet or a key a person holds.
 
+> In this repository the blog replaces the template's Guess the Number sample.
+> This guide is the template's, and where it says Guess the Number, read the
+> blog: [`README.md`](README.md) has its quick start, `contracts/blog` and
+> `app/src/blog.ts` its contract and grants, and `e2e/tests/blog.spec.ts` its
+> browser tests. `new-app` and `scripts/blank/` stay in the template.
+
 ## Quick start
 
 You need Node 22.12+, Rust with the `wasm32v1-none` target
@@ -147,8 +153,9 @@ export const MyAction = () => {
 
 Everything here comes from `@stellar-scaffold/app-lib` (the template's
 `app-lib/`), except `SessionGate` (`app/src/components/`) and your client.
-`components/GuessTheNumber.tsx` is the full sample; `--blank` apps have
-`components/CheckIn.tsx`.
+`components/WritePost.tsx`, `components/Comments.tsx` and
+`components/TipPost.tsx` are this blog's call sites (the template's sample is
+`components/GuessTheNumber.tsx`); `--blank` apps have `components/CheckIn.tsx`.
 
 - `submitCall(address, build)` is the call site in one step. It reserves Nido's
   popup during the click, builds the call with a transaction source a C-address
@@ -305,7 +312,7 @@ By hand, the rules are one command away:
 ## Testing
 
 ```sh
-npm run test:unit           # app-lib session logic, new-app, vendor module
+npm run test:unit           # app-lib session logic, docs, vendor module
 npm run prepare:prototype   # offline clients with a placeholder ID: no deploy, no keys
 npm run test:e2e            # Playwright against the real app; wallet pages and RPC mocked
 ```

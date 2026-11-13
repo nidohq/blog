@@ -1,0 +1,93 @@
+name: Pages
+
+# Builds the app against the blog's testnet deployment pinned in scaffold.yml
+# and deploys it to GitHub Pages (https://nidohq.github.io/blog/).
+# Repo setting: Pages source = "GitHub Actions".
+#
+# Until `npm run deploy:testnet` has pinned the blog under `testnet:` in
+# scaffold.yml (see the README), there is no contract for the site to call:
+# the build checks and tests the app, then skips the deploy with a notice.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      STELLAR_NETWORK: testnet
+    outputs:
+      pinned: ${{ steps.pin.outputs.pinned }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      # The toolchain and wasm32v1-none target from rust-toolchain.toml:
+      # `clients:testnet` compiles the workspace contracts
+      - run: rustup toolchain install
+      # Pinned by SHA, so the action can't read the version from its ref
+      - uses: stellar/stellar-cli@5a7c5fe76530bf4248477ac812fc757146b98cc4 # v27.0.0
+        with:
+          version: 27.0.0
+      # The README quick start, then the checks
+      - run: npm run tools:scaffold
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run test:unit
+      - name: Is the blog deployed to testnet?
+        id: pin
+        run: |
+          if node -e '
+            const { parse } = require("yaml")
+            const yml = parse(require("fs").readFileSync("scaffold.yml", "utf8"))
+            process.exit(yml.contracts.blog.networks.testnet?.source ? 0 : 1)
+          '; then
+            echo "pinned=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pinned=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::scaffold.yml pins no testnet deployment of the blog yet, so nothing is deployed. Run npm run deploy:testnet and commit scaffold.yml (README, Deploying to GitHub Pages)."
+          fi
+      # Clients for the IDs under `testnet:` in scaffold.yml (no deploy). The
+      # throwaway testnet-user it funds with Friendbot lives only in this job.
+      - if: steps.pin.outputs.pinned == 'true'
+        run: npm run clients:testnet
+      - if: steps.pin.outputs.pinned == 'true'
+        id: pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - if: steps.pin.outputs.pinned == 'true'
+        run: npm run build
+        env:
+          # "/blog" on nidohq.github.io; "" behind a custom domain
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}/
+      - if: steps.pin.outputs.pinned == 'true'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: app/dist
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.pinned == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

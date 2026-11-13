@@ -34,21 +34,23 @@ const envelope = new TransactionBuilder(new Account(source, "0"), {
 	.setTimeout(30)
 	.build()
 	.toXDR()
-const meta = new xdr.TransactionMeta(
-	3,
-	new xdr.TransactionMetaV3({
-		ext: new xdr.ExtensionPoint(0),
-		txChangesBefore: [],
-		txChangesAfter: [],
-		operations: [],
-		sorobanMeta: new xdr.SorobanTransactionMeta({
-			ext: new xdr.SorobanTransactionMetaExt(0),
-			events: [],
-			diagnosticEvents: [],
-			returnValue: nativeToScVal(true),
+/** A confirmed transaction's meta, with the call's return value. */
+const meta = (returnValue: xdr.ScVal) =>
+	new xdr.TransactionMeta(
+		3,
+		new xdr.TransactionMetaV3({
+			ext: new xdr.ExtensionPoint(0),
+			txChangesBefore: [],
+			txChangesAfter: [],
+			operations: [],
+			sorobanMeta: new xdr.SorobanTransactionMeta({
+				ext: new xdr.SorobanTransactionMetaExt(0),
+				events: [],
+				diagnosticEvents: [],
+				returnValue,
+			}),
 		}),
-	}),
-).toXDR("base64")
+	).toXDR("base64")
 const result = new xdr.TransactionResult({
 	feeCharged: xdr.Int64.fromString("100"),
 	result: xdr.TransactionResultResult.txSuccess([]),
@@ -75,9 +77,12 @@ export const approveAll: GrantAnswer = () => ({
 /**
  * Mock the testnet RPC, Friendbot, Nido's pages and Nido's relayer for
  * `context`. `auth` gives the auth entries a simulated call asks the account
- * for (by function name and contract), and `grantAnswer` plays the owner on
- * Nido's grant page. Capped rules carry a spending-limit record that grows by
- * 1 XLM with each call the relayer takes, against a 2 XLM cap.
+ * for (by function name, contract and arguments), and `grantAnswer` plays the
+ * owner on Nido's grant page. `read` answers a simulated call with its return
+ * value, `relay` carries out a call Nido's relayer submits and returns its
+ * value, and `spend` says what that call takes from a capped rule (1 XLM each
+ * by default). Capped rules carry a spending-limit record that grows with
+ * each call the relayer takes, against the cap the owner approved.
  */
 export async function mockServices(
 	context: BrowserContext,
@@ -86,12 +91,25 @@ export async function mockServices(
 		grantAnswer = approveAll,
 		auth = () => [],
 		relayDelay = 0,
+		read = () => undefined,
+		relay = () => nativeToScVal(true),
+		spend = () => 10_000_000n,
 	}: {
 		signResult?: string
 		grantAnswer?: GrantAnswer
-		auth?: (method: string, target: string) => xdr.SorobanAuthorizationEntry[]
+		auth?: (
+			method: string,
+			target: string,
+			args: xdr.ScVal[],
+		) => xdr.SorobanAuthorizationEntry[]
 		/** How long Nido's relayer takes to answer, in ms. */
 		relayDelay?: number
+		/** A simulated call's return value; undefined for the default. */
+		read?: (method: string, args: xdr.ScVal[]) => xdr.ScVal | undefined
+		/** Carry out a call the relayer submits; returns its return value. */
+		relay?: (method: string, args: xdr.ScVal[]) => xdr.ScVal
+		/** What a relayed call takes from a capped rule, in stroops. */
+		spend?: (method: string, args: xdr.ScVal[]) => bigint
 	} = {},
 ) {
 	const calls: string[] = []
@@ -100,8 +118,10 @@ export async function mockServices(
 	const sent: xdr.TransactionEnvelope[] = []
 	const relayed: { func: string; auth: string[] }[] = []
 	const funded: string[] = []
-	// What each capped rule has spent, as its policy records it: 1 XLM a guess
+	// What each capped rule has spent, as its policy records it
 	const spent: bigint[] = []
+	// The return value of the last call the relayer took
+	let returnValue = nativeToScVal(true)
 	await context.route(
 		"https://soroban-testnet.stellar.org/**",
 		async (route) => {
@@ -125,7 +145,8 @@ export async function mockServices(
 				const method = call.functionName().toString()
 				const target = Address.fromScAddress(call.contractAddress()).toString()
 				const retval =
-					method === "balance"
+					read(method, call.args()) ??
+					(method === "balance"
 						? nativeToScVal(125000000n, { type: "i128" })
 						: method === "installed_rules"
 							? installedRules(landed)
@@ -136,7 +157,7 @@ export async function mockServices(
 											{ auth_digest: "addr_oz_v1" },
 											{ type: { auth_digest: ["symbol", "symbol"] } },
 										)
-									: nativeToScVal(false)
+									: nativeToScVal(false))
 				response = {
 					latestLedger: ledger,
 					minResourceFee: "100",
@@ -144,7 +165,9 @@ export async function mockServices(
 					events: [],
 					results: [
 						{
-							auth: auth(method, target).map((a) => a.toXDR("base64")),
+							auth: auth(method, target, call.args()).map((a) =>
+								a.toXDR("base64"),
+							),
 							xdr: retval.toXDR("base64"),
 						},
 					],
@@ -159,7 +182,7 @@ export async function mockServices(
 					feeBump: false,
 					envelopeXdr: envelope,
 					resultXdr: result,
-					resultMetaXdr: meta,
+					resultMetaXdr: meta(returnValue),
 				}
 			} else if (body.method === "getLedgerEntries") {
 				// Classic accounts, and the cap's spending record
@@ -169,7 +192,7 @@ export async function mockServices(
 					entries: keys.flatMap((key) =>
 						xdr.LedgerKey.fromXDR(key, "base64").switch().name ===
 						"contractData"
-							? capEntry(key, spent)
+							? capEntry(key, spent, capLimit(landed))
 							: [accountEntry(key)],
 					),
 				}
@@ -196,7 +219,14 @@ export async function mockServices(
 			params: { func: string; auth: string[] }
 		}
 		relayed.push(params)
-		spent.push(10_000_000n)
+		const call = xdr.HostFunction.fromXDR(
+			params.func,
+			"base64",
+		).invokeContract()
+		const [method, args] = [call.functionName().toString(), call.args()]
+		const amount = spend(method, args)
+		if (amount) spent.push(amount)
+		returnValue = relay(method, args)
 		await new Promise((resolve) => setTimeout(resolve, relayDelay))
 		await route.fulfill({
 			json: {
@@ -268,9 +298,14 @@ function document(grants: AskedGrant[]) {
 	])
 }
 
+/** The cap the owner approved, in stroops: 2 XLM unless a landed grant says
+ * otherwise. */
+const capLimit = (landed: AskedGrant[]) =>
+	BigInt(landed.find(capped)?.limit ?? 2) * 10_000_000n
+
 /** The spending-limit policy's record for the key asked, once anything was
- * spent: a 2 XLM cap over a day of ledgers. */
-function capEntry(key: string, spent: bigint[]) {
+ * spent: `limit` stroops over a day of ledgers. */
+function capEntry(key: string, spent: bigint[], limit: bigint) {
 	if (!spent.length) return []
 	const data = xdr.LedgerKey.fromXDR(key, "base64").contractData()
 	const map = (fields: [string, xdr.ScVal][]) =>
@@ -299,7 +334,7 @@ function capEntry(key: string, spent: bigint[]) {
 				),
 			),
 		],
-		["spending_limit", nativeToScVal(20_000_000n, { type: "i128" })],
+		["spending_limit", nativeToScVal(limit, { type: "i128" })],
 	])
 	const entry = xdr.LedgerEntryData.contractData(
 		new xdr.ContractDataEntry({

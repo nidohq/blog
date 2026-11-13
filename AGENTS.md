@@ -47,8 +47,9 @@ without an error (it compiles and writes no clients), so the wrapper refuses it;
   `submitContract`, balances), `nido.ts` (Nido popup path), `session.ts`
   (session passkeys, coverage, `describe`).
 - `app/src/` — React UI. `components/SessionGate.tsx` asks a Nido account for a
-  session; `components/GuessTheNumber.tsx` (or `CheckIn.tsx` in a `--blank` app)
-  is the reference call site.
+  session; `components/WritePost.tsx`, `Comments.tsx` and `TipPost.tsx` are this
+  blog's call sites, with its grants in `src/blog.ts` (`CheckIn.tsx` in a
+  `--blank` app).
 - `scripts/` — the tooling above; `webauthn-sidecar.mjs` arms virtual passkeys.
 - `vendor/nido-wallet/` — the Nido Wallets Kit module, vendored (see its README
   for the diff from upstream).

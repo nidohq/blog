@@ -1,97 +1,80 @@
-import { labPrefix } from "@stellar-scaffold/app-lib"
-import React from "react"
+import React, { useState } from "react"
 import { Link } from "react-router-dom"
-import { GuessTheNumber } from "../components/GuessTheNumber"
-import styles from "./Home.module.css"
+import { formatTime, formatXlm, PAGE } from "../blog"
+import { Author } from "../components/Author"
+import { WritePost } from "../components/WritePost"
+import { usePostCount, usePostPage } from "../hooks/useBlog"
+import styles from "./Blog.module.css"
 
-const Home: React.FC = () => (
-	<div className={styles.Home}>
-		<div>
-			<h1>Yay! You&apos;re on Stellar!</h1>
-			<p>
-				A local development template designed to help you build dApps on the
-				Stellar network. This environment lets you easily test wallet
-				connections, smart contract interactions, transaction verifications,
-				etc.{" "}
-				<Link to="https://scaffoldstellar.org/docs/intro" target="_blank">
-					View docs
-				</Link>
-			</p>
-		</div>
+/** The newest posts, a page at a time, and a form to write one. */
+const Home: React.FC = () => {
+	const count = usePostCount()
+	const [page, setPage] = useState(0)
+	const posts = usePostPage(page, count.data)
+	const pages = Math.max(1, Math.ceil((count.data ?? 0) / PAGE))
 
-		<div className="card">
-			<h2>Sample Contracts</h2>
-			<p>
-				<strong>Guess The Number:</strong> Interact with the sample contract
-				from the{" "}
-				<Link
-					to="https://scaffoldstellar.org/docs/tutorial/overview"
-					target="_blank"
-				>
-					Scaffold Tutorial
-				</Link>{" "}
-				using an automatically generated contract client.
-			</p>
-			<GuessTheNumber />
-			<p>Or take a look at other sample contracts to get you started:</p>
-			<nav className={styles.contractNav}>
-				<a
-					href="https://github.com/OpenZeppelin/stellar-contracts/tree/main/examples"
-					target="_blank"
-					rel="noreferrer"
-				>
-					OpenZeppelin sample contracts
-				</a>
-				<a
-					href="https://github.com/stellar/soroban-examples"
-					target="_blank"
-					rel="noreferrer"
-				>
-					Soroban sample contracts
-				</a>
-			</nav>
-		</div>
-
-		<div className="card">
-			<h2>Start Building</h2>
-			<ol>
-				<li>
-					Add your contract under <code>contracts/</code> and list it in{" "}
-					<code>scaffold.yml</code> for <code>testnet-dev</code>
-				</li>
-				<li>
-					<code>npm run deploy:testnet</code> deploys it, pins its ID and writes
-					its client
-				</li>
-				<li>
-					Call it with <code>submitCall</code>; Nido accounts approve the app
-					once through a <code>SessionGate</code>
-				</li>
-				<li>
-					Try it in the <Link to="/debug">Contract Explorer</Link>
-				</li>
-			</ol>
-			<p>
-				<code>NIDO.md</code> in this project has each step, the rules a Nido
-				account follows, and what to do when Nido&apos;s relayer says no.
-			</p>
-		</div>
-
-		<section className={styles.cards}>
-			<div className="card">
+	return (
+		<div className={styles.Blog}>
+			<header className={styles.intro}>
+				<h1>Blog</h1>
 				<p>
-					Invoke your smart contract using the{" "}
-					<Link to="/debug">Contract Explorer</Link>
+					An example Stellar app: write posts, comment on them, and tip their
+					authors in XLM, from a Nido passkey account. Approve the blog once and
+					each post, comment and tip after that asks your device for the
+					app&apos;s passkey and nothing else, with tips capped at a few XLM a
+					day. Testnet only.
 				</p>
-			</div>
-			<div className="card">
-				<p>
-					Browse your local transactions with the{" "}
-					<Link to={labPrefix()}>Transaction Explorer</Link>
-				</p>
-			</div>
-		</section>
-	</div>
-)
+			</header>
+
+			<WritePost />
+
+			<section aria-label="Posts">
+				<h2>Posts</h2>
+				{(count.isError || posts.isError) && (
+					<p role="alert">
+						Couldn&apos;t read the blog: {String(count.error ?? posts.error)}
+					</p>
+				)}
+				{count.data === 0 && <p>No posts yet. Write the first one.</p>}
+				<ol className={styles.postList}>
+					{posts.data?.map((post) => (
+						<li key={post.id} className="card">
+							<h3>
+								<Link to={`/posts/${post.id}`}>{post.title}</Link>
+							</h3>
+							<p className="post-meta">
+								#{post.id} by <Author address={post.author} /> ·{" "}
+								{formatTime(post.timestamp)} · {post.comment_count}{" "}
+								{post.comment_count === 1 ? "comment" : "comments"}
+								{post.tipped > 0n && ` · ${formatXlm(post.tipped)} XLM tipped`}
+							</p>
+						</li>
+					))}
+				</ol>
+				{pages > 1 && (
+					<nav className={styles.pager} aria-label="Pages">
+						<button
+							type="button"
+							onClick={() => setPage(page - 1)}
+							disabled={page === 0}
+						>
+							Newer
+						</button>
+						<span>
+							Page {page + 1} of {pages}
+						</span>
+						<button
+							type="button"
+							onClick={() => setPage(page + 1)}
+							disabled={page + 1 >= pages}
+						>
+							Older
+						</button>
+					</nav>
+				)}
+			</section>
+		</div>
+	)
+}
 
 export default Home

@@ -1,0 +1,36 @@
+name: Blog tests
+
+# The blog contract's unit tests, and the browser tests: the real app, wallet
+# picker, Nido popup transport, virtual passkey and generated client, with
+# Nido's pages, its relayer and the RPC mocked. The clients are prototypes
+# with a placeholder contract ID, so nothing is deployed or sent.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      # The toolchain and wasm32v1-none target from rust-toolchain.toml
+      - run: rustup toolchain install
+      - uses: stellar/stellar-cli@5a7c5fe76530bf4248477ac812fc757146b98cc4 # v27.0.0
+        with:
+          version: 27.0.0
+      - run: cargo test -p blog
+      - run: npm ci
+      - run: npm run prepare:prototype
+      - run: npx playwright install --with-deps chromium
+        working-directory: e2e
+      - run: npm run test:e2e

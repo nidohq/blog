@@ -1,16 +1,18 @@
 import { labPrefix } from "@stellar-scaffold/app-lib"
-import { NavLink, Outlet, Route, Routes } from "react-router-dom"
+import { Link, NavLink, Outlet, Route, Routes } from "react-router-dom"
 import styles from "./App.module.css"
 import ConnectAccount from "./components/ConnectAccount"
 import { SessionNote } from "./components/SessionNote"
 import Debug from "./pages/Debug"
 import Home from "./pages/Home"
+import PostPage from "./pages/PostPage"
 
 function App() {
 	return (
 		<Routes>
 			<Route element={<AppLayout />}>
 				<Route path="/" element={<Home />} />
+				<Route path="/posts/:id" element={<PostPage />} />
 				<Route path="/debug" element={<Debug />} />
 				<Route path="/debug/:contractName" element={<Debug />} />
 			</Route>
@@ -21,7 +23,9 @@ function App() {
 const AppLayout = () => (
 	<div className={styles.AppLayout}>
 		<header className={styles.header}>
-			<span className={styles.logo}>Scaffold</span>
+			<Link to="/" className={styles.logo}>
+				Blog
+			</Link>
 			<nav className={styles.headerNav}>
 				<NavLink
 					to="/debug"
@@ -44,21 +48,17 @@ const AppLayout = () => (
 		<footer className={styles.footer}>
 			<nav className={styles.footerNav}>
 				<a
-					href="https://github.com/stellar-scaffold/cli"
+					href="https://github.com/nidohq/blog"
 					target="_blank"
 					rel="noreferrer"
 				>
-					GitHub
+					Source
 				</a>
-				<a
-					href="https://www.youtube.com/watch?v=0syGaIn3ULk&list=PLmr3tp_7-7Gjj6gn5-bBn-QTMyaWzwOU5"
-					target="_blank"
-					rel="noreferrer"
-				>
-					Tutorial
+				<a href="https://test.nido.fyi" target="_blank" rel="noreferrer">
+					Nido wallet
 				</a>
 				<a href="https://scaffoldstellar.org" target="_blank" rel="noreferrer">
-					View docs
+					Scaffold Stellar
 				</a>
 			</nav>
 		</footer>
