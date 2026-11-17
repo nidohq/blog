@@ -29,6 +29,7 @@ import {
 	xdr,
 } from "@stellar/stellar-sdk"
 import { parseDocument } from "yaml"
+import { assertPortFree, devPort } from "./port.mjs"
 import { root, toolEnv } from "./tools.mjs"
 
 export const MAINNET_RPC = "https://mainnet.sorobanrpc.com"
@@ -306,7 +307,7 @@ Uploading the code and creating the contract costs real XLM in fees.`)
 	console.log(`Deployed and pinned under mainnet: in scaffold.yml: ${id}
 https://stellar.expert/explorer/public/contract/${id}`)
 	await clients(server)
-	console.log("Next: npm run dev:mainnet")
+	console.log(`Next: npm run dev:mainnet (http://localhost:${devPort(root)})`)
 }
 
 async function upgrade(alias, server, { yes }) {
@@ -383,6 +384,9 @@ https://stellar.expert/explorer/public/contract/${id}`)
 }
 
 async function dev(server) {
+	// Before the build: the app runs only on its own port
+	const port = devPort(root)
+	await assertPortFree(port)
 	await clients(server)
 	const vite = spawn("npm", ["exec", "--workspace", "app", "--", "vite"], {
 		cwd: root,

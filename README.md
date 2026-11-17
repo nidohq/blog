@@ -163,6 +163,12 @@ ID under `contracts.blog.networks.mainnet` in `scaffold.yml`, and writes the
 mainnet client. `dev:mainnet` checks the pinned contract is live, writes the
 client, and starts the app against it. `npm run dev` goes back to testnet.
 
+No `.env` is needed for this: the app always runs on port 5421 (`PORT` in the
+shell or `.env` changes it). If another process holds 5421 on any address,
+`dev:mainnet` and `npm run dev` stop and name it rather than start beside it or
+on another port, because a Nido session belongs to the page's origin, port
+included.
+
 Open <http://localhost:5421>, press Connect and choose Nido: it opens nido.fyi.
 The approval is the same two rules, now on mainnet, with tips capped at 5 XLM a
 day. Simulated on 2026-11-13 against a live mainnet Nido account, the blog's

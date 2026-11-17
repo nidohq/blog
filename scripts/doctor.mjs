@@ -7,9 +7,9 @@
 // Exits 1 when a check fails; warnings don't fail.
 import { execFileSync } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
-import { createServer } from "node:net"
 import { join } from "node:path"
 import { parse } from "yaml"
+import { assertPortFree, devPort } from "./port.mjs"
 import {
 	SCAFFOLD_MIN,
 	configHome,
@@ -255,22 +255,15 @@ check(
 
 // --- Dev server ----------------------------------------------------------------
 
-const port = Number(process.env.PORT ?? env.PORT) || 5173
-const free = await new Promise((resolve) => {
-	const server = createServer()
-		.once("error", () => resolve(false))
-		.once("listening", () => server.close(() => resolve(true)))
-		.listen(port, "localhost")
-})
+const port = devPort(root)
+const busy = await assertPortFree(port).then(
+	() => undefined,
+	(error) => error.message,
+)
 check(
 	"port",
-	free ? "ok" : "warn",
-	free
-		? `port ${port} is free for npm run dev`
-		: `port ${port} is in use (your dev server, or another app)`,
-	free
-		? undefined
-		: "If it isn't this app: set another PORT in .env. Sessions are per origin, so approve again on the new port.",
+	busy ? "warn" : "ok",
+	busy ?? `port ${port} is free for npm run dev`,
 )
 
 // --- Report --------------------------------------------------------------------

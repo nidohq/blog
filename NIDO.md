@@ -357,8 +357,9 @@ pricing, 3.3 and 0.2 XLM, and the approval 44 XLM.
 - **"An identity with the name … already exists"**: harmless; Scaffold checks
   for the deployer on every build.
 - **Port in use** when `npm run dev` starts: another process holds this app's
-  `PORT`. Stop it, or set another `PORT` in `.env` and approve the session again
-  on the new origin.
+  port (`PORT`, or 5421 without one) on some address; the message names its PID
+  and directory. Stop it, or set another `PORT` in the shell or `.env` and
+  approve the session again on the new origin.
 - **Two incompatible `AssembledTransaction` types** in TypeScript: a fresh
   client brought its own SDK; run `npm run link-clients`.
 - **504 "Outdated Optimize Dep"** after changing dependencies: restart Vite with
