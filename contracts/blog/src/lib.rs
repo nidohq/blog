@@ -10,7 +10,13 @@
 //! pays the author in the same call. A Nido account's XLM grant can then
 //! name one address it may pay, this contract, however many authors there
 //! are.
-use soroban_sdk::{Address, Env, String, Vec, contract, contractevent, contractimpl, contracttype};
+//!
+//! The blog can be upgraded in place: the admin named at deployment may
+//! replace its code with [`Blog::upgrade`], keeping every post, comment and
+//! tip. Nothing else needs or gives the admin any power.
+use soroban_sdk::{
+    Address, BytesN, Env, String, Vec, contract, contractevent, contractimpl, contracttype,
+};
 
 mod error;
 mod xlm;
@@ -74,6 +80,9 @@ pub struct Stats {
 #[contracttype]
 #[derive(Clone)]
 enum Key {
+    /// Who may upgrade the blog (instance storage), set once by the
+    /// constructor.
+    Admin,
     /// How many posts there are (instance storage).
     PostCount,
     /// A post's text.
@@ -103,6 +112,12 @@ pub struct Commented {
     pub index: u32,
 }
 
+/// Published when the admin replaces the blog's code.
+#[contractevent]
+pub struct Upgraded {
+    pub wasm_hash: BytesN<32>,
+}
+
 /// Published when a post's author is tipped.
 #[contractevent]
 pub struct Tipped {
@@ -119,9 +134,31 @@ pub struct Blog;
 
 #[contractimpl]
 impl Blog {
-    pub fn __constructor(env: &Env) {
+    /// Deploy the blog with `admin`, the one address that may upgrade it.
+    /// A contract's constructor runs once, at deployment, so the admin never
+    /// changes.
+    pub fn __constructor(env: &Env, admin: Address) {
+        env.storage().instance().set(&Key::Admin, &admin);
         // Unit tests and a fresh local network need the XLM contract set up
         xlm::register(env);
+    }
+
+    /// Who may upgrade the blog.
+    pub fn admin(env: &Env) -> Address {
+        admin(env)
+    }
+
+    /// Replace the blog's code with the uploaded wasm `new_wasm_hash`, as
+    /// the admin. Storage stays as it is: posts, comments, tips and the
+    /// admin carry over to the new code.
+    pub fn upgrade(env: &Env, new_wasm_hash: BytesN<32>) {
+        admin(env).require_auth();
+        env.deployer()
+            .update_current_contract_wasm(new_wasm_hash.clone());
+        Upgraded {
+            wasm_hash: new_wasm_hash,
+        }
+        .publish(env);
     }
 
     /// Write a post as `author`, and return its number.
@@ -259,6 +296,13 @@ impl Blog {
         }
         Ok(page)
     }
+}
+
+fn admin(env: &Env) -> Address {
+    env.storage()
+        .instance()
+        .get(&Key::Admin)
+        .expect("the constructor sets the admin")
 }
 
 /// `text` must be non-empty and at most `max` bytes.

@@ -22,6 +22,7 @@
     "prepare:prototype": "node scripts/prepare-prototype.mjs",
     "preview:prototype": "npm exec --workspace app -- vite --host 127.0.0.1 --port 5180",
     "deploy:mainnet": "node scripts/mainnet.mjs deploy",
+    "upgrade:mainnet": "node scripts/mainnet.mjs upgrade",
     "dev:mainnet": "node scripts/mainnet.mjs dev"
   },
   "workspaces": [

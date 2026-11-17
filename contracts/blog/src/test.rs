@@ -2,7 +2,8 @@ extern crate std;
 
 use super::*;
 use soroban_sdk::testutils::{
-    Address as _, AuthorizedFunction, AuthorizedInvocation, Events as _, Ledger as _,
+    Address as _, AuthorizedFunction, AuthorizedInvocation, Events as _, Ledger as _, MockAuth,
+    MockAuthInvoke,
 };
 use soroban_sdk::token::{StellarAssetClient, TokenClient};
 use soroban_sdk::{Event as _, IntoVal, Symbol, vec};
@@ -12,15 +13,22 @@ struct Setup<'a> {
     env: Env,
     blog: BlogClient<'a>,
     xlm: TokenClient<'a>,
+    admin: Address,
 }
 
 fn setup<'a>() -> Setup<'a> {
     let env = Env::default();
     env.ledger().set_timestamp(1_700_000_000);
-    let id = env.register(Blog, ());
+    let admin = Address::generate(&env);
+    let id = env.register(Blog, (&admin,));
     let blog = BlogClient::new(&env, &id);
     let xlm = TokenClient::new(&env, &env.as_contract(&id, || xlm::contract_id(&env)));
-    Setup { env, blog, xlm }
+    Setup {
+        env,
+        blog,
+        xlm,
+        admin,
+    }
 }
 
 impl Setup<'_> {
@@ -427,4 +435,152 @@ fn a_post_with_no_comments_has_an_empty_page() {
     let alice = Address::generate(&t.env);
     let id = t.post_by(&alice, "Hello");
     assert!(t.blog.comments(&id, &0, &MAX_PAGE).is_empty());
+}
+
+// --- admin and upgrade --------------------------------------------------
+
+/// The blog's wasm, built from this checkout as `stellar contract build`
+/// would (for the local network), once per test run.
+fn blog_wasm() -> &'static [u8] {
+    static WASM: std::sync::OnceLock<std::vec::Vec<u8>> = std::sync::OnceLock::new();
+    WASM.get_or_init(|| {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        // A target directory of its own: the one running these tests is locked
+        let target = root.join("target/upgrade-test");
+        let status = std::process::Command::new(option_env!("CARGO").unwrap_or("cargo"))
+            .current_dir(&root)
+            .args(["build", "--package", "blog", "--release"])
+            .args(["--target", "wasm32v1-none", "--target-dir"])
+            .arg(&target)
+            .env("STELLAR_NETWORK", "local")
+            .status()
+            .expect("cargo builds the blog's wasm");
+        assert!(status.success(), "building the blog's wasm failed");
+        std::fs::read(target.join("wasm32v1-none/release/blog.wasm")).unwrap()
+    })
+}
+
+/// The code contract `id` runs, from the ledger.
+fn executable(env: &Env, id: &Address) -> soroban_sdk::xdr::ContractExecutable {
+    use soroban_sdk::xdr::{LedgerEntryData, ScAddress, ScVal};
+    let address = ScAddress::from(id);
+    env.to_ledger_snapshot()
+        .ledger_entries
+        .iter()
+        .find_map(|(_, (entry, _))| match &entry.data {
+            LedgerEntryData::ContractData(data)
+                if data.contract == address && data.key == ScVal::LedgerKeyContractInstance =>
+            {
+                match &data.val {
+                    ScVal::ContractInstance(instance) => Some(instance.executable.clone()),
+                    _ => None,
+                }
+            }
+            _ => None,
+        })
+        .expect("the contract has an instance")
+}
+
+#[test]
+fn the_constructor_sets_the_admin() {
+    let t = setup();
+    assert_eq!(t.blog.admin(), t.admin);
+    // Writing, commenting and tipping leave it as it was
+    let alice = t.funded(10);
+    let bob = t.funded(10);
+    let id = t.post_by(&alice, "Hello");
+    t.blog.comment(&bob, &id, &t.s("Hi"));
+    t.blog.tip(&bob, &id, &1_000_000);
+    assert_eq!(t.blog.admin(), t.admin);
+}
+
+#[test]
+fn upgrade_keeps_posts_comments_and_tips() {
+    let t = setup();
+    let alice = t.funded(10);
+    let bob = t.funded(10);
+    let id = t.post_by(&alice, "Before");
+    t.blog.comment(&bob, &id, &t.s("A comment"));
+    t.blog.tip(&bob, &id, &20_000_000);
+    let post = t.blog.get_post(&id);
+    let comments = t.blog.comments(&id, &0, &MAX_PAGE);
+
+    let hash = t.env.deployer().upload_contract_wasm(blog_wasm());
+    assert_ne!(
+        executable(&t.env, &t.blog.address),
+        soroban_sdk::xdr::ContractExecutable::Wasm(hash.to_array().into())
+    );
+    t.env.mock_all_auths();
+    t.blog.upgrade(&hash);
+    assert_eq!(
+        t.env.auths(),
+        std::vec![(
+            t.admin.clone(),
+            AuthorizedInvocation {
+                function: AuthorizedFunction::Contract((
+                    t.blog.address.clone(),
+                    Symbol::new(&t.env, "upgrade"),
+                    vec![&t.env, hash.to_val()],
+                )),
+                sub_invocations: std::vec![],
+            }
+        )]
+    );
+    assert_eq!(
+        t.env.events().all().filter_by_contract(&t.blog.address),
+        [Upgraded {
+            wasm_hash: hash.clone()
+        }
+        .to_xdr(&t.env, &t.blog.address)]
+    );
+
+    // The blog now runs the uploaded code, on the same storage
+    assert_eq!(
+        executable(&t.env, &t.blog.address),
+        soroban_sdk::xdr::ContractExecutable::Wasm(hash.to_array().into())
+    );
+    assert_eq!(t.blog.post_count(), 1);
+    assert_eq!(t.blog.get_post(&id), post);
+    assert_eq!(t.blog.comments(&id, &0, &MAX_PAGE), comments);
+    assert_eq!(t.blog.admin(), t.admin);
+    // and keeps working
+    assert_eq!(t.post_by(&bob, "After"), 2);
+    assert_eq!(t.blog.get_post(&2).title, t.s("After"));
+}
+
+#[test]
+fn only_the_admin_can_upgrade() {
+    let t = setup();
+    let hash = t.env.deployer().upload_contract_wasm(blog_wasm());
+    let before = executable(&t.env, &t.blog.address);
+    // Nobody's authorization
+    assert!(t.blog.try_upgrade(&hash).is_err());
+    // Someone else's authorization for exactly this call
+    let mallory = Address::generate(&t.env);
+    t.env.mock_auths(&[MockAuth {
+        address: &mallory,
+        invoke: &MockAuthInvoke {
+            contract: &t.blog.address,
+            fn_name: "upgrade",
+            args: (&hash,).into_val(&t.env),
+            sub_invokes: &[],
+        },
+    }]);
+    assert!(t.blog.try_upgrade(&hash).is_err());
+    assert_eq!(executable(&t.env, &t.blog.address), before);
+    // The admin's
+    t.env.mock_auths(&[MockAuth {
+        address: &t.admin,
+        invoke: &MockAuthInvoke {
+            contract: &t.blog.address,
+            fn_name: "upgrade",
+            args: (&hash,).into_val(&t.env),
+            sub_invokes: &[],
+        },
+    }]);
+    t.blog.upgrade(&hash);
+    assert_eq!(
+        executable(&t.env, &t.blog.address),
+        soroban_sdk::xdr::ContractExecutable::Wasm(hash.to_array().into())
+    );
 }

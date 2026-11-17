@@ -1,9 +1,13 @@
 // The blog on Stellar mainnet, run locally against hosted Nido's mainnet
-// wallet (https://nido.fyi). Real XLM: only `deploy` sends a transaction, it
-// signs with the key you name, and it asks before it does.
+// wallet (https://nido.fyi). Real XLM: only `deploy` and `upgrade` send
+// transactions, they sign with the key you name, and they ask before they do.
 //
 //   npm run deploy:mainnet -- <key-alias>   # deploy, pin under mainnet:, write clients
 //   npm run dev:mainnet                     # verify the pin, write clients, start Vite
+//   npm run upgrade:mainnet -- <key-alias>  # as the blog's admin, swap in this checkout's code
+//
+// The key that deploys the blog becomes its admin, the one address that may
+// upgrade it.
 //
 // `<key-alias>` is a `stellar keys` identity holding mainnet XLM: one in this
 // project (`npm run stellar -- keys add <alias> --secret-key`, or
@@ -68,14 +72,33 @@ export function validateMainnetId(id, testnetId) {
 	return id
 }
 
-/** scaffold.yml text with the blog pinned under `mainnet:` (comments kept). */
+/**
+ * scaffold.yml text with the blog pinned under `mainnet:`, after its last
+ * network. Splices the text rather than re-serializing the YAML, which would
+ * reformat the rest of the file (`[me]` as `[ me ]`, and a 25-digit
+ * `initial_supply` as the float `1e+24`).
+ */
 export function pinMainnet(text, id) {
-	const doc = parseDocument(text)
-	doc.setIn(["contracts", CRATE, "networks", "mainnet"], {
-		type: "contract",
-		source: id,
-	})
-	return doc.toString()
+	const networks = parseDocument(text).getIn(
+		["contracts", CRATE, "networks"],
+		true,
+	)
+	const last = networks?.items?.at(-1)
+	if (!last?.key?.range || !last.value?.range)
+		throw new Error(`scaffold.yml has no networks: for ${CRATE} to pin under.`)
+	if (networks.has("mainnet"))
+		throw new Error(`scaffold.yml already pins ${CRATE} under mainnet:.`)
+	const lineStart = text.lastIndexOf("\n", last.key.range[0]) + 1
+	const indent = text.slice(lineStart, last.key.range[0])
+	// The line after the last network's value, before any comment that follows
+	const valueEnd = last.value.range[1]
+	const at =
+		text[valueEnd - 1] === "\n"
+			? valueEnd
+			: text.indexOf("\n", valueEnd) + 1 || text.length
+	const head = text.slice(0, at)
+	const entry = `${indent}mainnet:\n${indent}  type: contract\n${indent}  source: ${id}\n`
+	return `${head}${head.endsWith("\n") ? "" : "\n"}${entry}${text.slice(at)}`
 }
 
 /** Stop unless `server` is a mainnet RPC. */
@@ -85,8 +108,9 @@ export async function checkRpc(server) {
 		throw new Error(`${MAINNET_RPC} is not Stellar mainnet (${passphrase}).`)
 }
 
-/** The wasm hash of deployed contract `id`; throws if it isn't live. */
-export async function deployedWasmHash(id, server) {
+/** Deployed contract `id`'s wasm hash and the admin its constructor
+ * recorded; throws if it isn't live. */
+export async function deployedInstance(id, server) {
 	const key = xdr.LedgerKey.contractData(
 		new xdr.LedgerKeyContractData({
 			contract: new Address(id).toScAddress(),
@@ -97,13 +121,20 @@ export async function deployedWasmHash(id, server) {
 	const { entries } = await server.getLedgerEntries(key)
 	if (!entries.length)
 		throw new Error(`The mainnet blog ${id} is absent or archived.`)
-	return entries[0].val
-		.contractData()
-		.val()
-		.instance()
-		.executable()
-		.wasmHash()
-		.toString("hex")
+	const instance = entries[0].val.contractData().val().instance()
+	// The blog keeps its admin under the key `Admin` (a unit enum variant)
+	const admin = (instance.storage() ?? []).find((entry) => {
+		const vec = entry.key().switch().name === "scvVec" && entry.key().vec()
+		return (
+			vec?.length === 1 &&
+			vec[0].switch().name === "scvSymbol" &&
+			vec[0].sym().toString() === "Admin"
+		)
+	})
+	return {
+		wasmHash: instance.executable().wasmHash().toString("hex"),
+		admin: admin && Address.fromScVal(admin.val()).toString(),
+	}
 }
 
 const config = () => readFileSync(resolve(root, "scaffold.yml"), "utf8")
@@ -167,7 +198,7 @@ async function clients(server) {
 	)
 	await checkRpc(server)
 	const local = buildForMainnet()
-	const deployed = await deployedWasmHash(id, server)
+	const { wasmHash: deployed } = await deployedInstance(id, server)
 	if (deployed !== local)
 		console.warn(
 			`The mainnet blog runs wasm ${deployed.slice(0, 12)}…; this checkout builds ${local.slice(0, 12)}…. The client follows this checkout's contract.`,
@@ -239,6 +270,7 @@ async function deploy(alias, server, { yes }) {
 	console.log(`
 Deploy the blog to Stellar MAINNET
   from      ${address} (${alias}, ${where}), sequence ${account.sequenceNumber()}
+  admin     ${address} (${alias}): the one address that may upgrade the blog
   wasm      ${hash}, paying in mainnet XLM ${Asset.native().contractId(Networks.PUBLIC)}
   network   ${MAINNET_RPC}
 Uploading the code and creating the contract costs real XLM in fees.`)
@@ -260,6 +292,9 @@ Uploading the code and creating the contract costs real XLM in fees.`)
 			MAINNET_RPC,
 			"--network-passphrase",
 			Networks.PUBLIC,
+			"--",
+			"--admin",
+			address,
 		],
 		env,
 	)
@@ -272,6 +307,79 @@ Uploading the code and creating the contract costs real XLM in fees.`)
 https://stellar.expert/explorer/public/contract/${id}`)
 	await clients(server)
 	console.log("Next: npm run dev:mainnet")
+}
+
+async function upgrade(alias, server, { yes }) {
+	if (!alias) throw new Error("usage: npm run upgrade:mainnet -- <key-alias>")
+	await checkRpc(server)
+	const networks = pinned()
+	const id = validateMainnetId(
+		networks.mainnet?.source,
+		networks.testnet?.source,
+	)
+	const { where, env, address } = keyStore(alias)
+	const { wasmHash: deployed, admin } = await deployedInstance(id, server)
+	if (!admin)
+		throw new Error(
+			`The mainnet blog ${id} has no admin: it was deployed before the blog could be upgraded. Deploy a new one.`,
+		)
+	if (admin !== address)
+		throw new Error(
+			`${alias} is ${address}, but only ${admin} may upgrade the blog at ${id}.`,
+		)
+	const hash = buildForMainnet()
+	if (hash === deployed)
+		throw new Error(`The mainnet blog already runs this code (${hash}).`)
+	console.log(`
+Upgrade the blog on Stellar MAINNET
+  blog      ${id}
+  admin     ${address} (${alias}, ${where})
+  code      ${deployed} → ${hash}
+  network   ${MAINNET_RPC}
+Uploading the code and switching to it are two transactions, paid in real XLM.
+Posts, comments and tips stay; the contract ID does not change.`)
+	if (!yes) {
+		const rl = createInterface({ input: process.stdin, output: process.stdout })
+		const answer = await rl.question('Type "upgrade" to send it: ')
+		rl.close()
+		if (answer.trim() !== "upgrade") throw new Error("Nothing was sent.")
+	}
+	const network = [
+		"--source-account",
+		alias,
+		"--rpc-url",
+		MAINNET_RPC,
+		"--network-passphrase",
+		Networks.PUBLIC,
+	]
+	const uploaded = stellar(
+		["contract", "upload", "--wasm", wasmPath, ...network],
+		env,
+	)
+		.split("\n")
+		.at(-1)
+	if (uploaded !== hash)
+		throw new Error(`Uploaded ${uploaded}, expected ${hash}; nothing upgraded.`)
+	stellar(
+		[
+			"contract",
+			"invoke",
+			"--id",
+			id,
+			...network,
+			"--",
+			"upgrade",
+			"--new_wasm_hash",
+			hash,
+		],
+		env,
+	)
+	const { wasmHash: now } = await deployedInstance(id, server)
+	if (now !== hash)
+		throw new Error(`The blog still runs ${now}; the upgrade did not land.`)
+	console.log(`Upgraded: the blog at ${id} runs ${hash}.
+https://stellar.expert/explorer/public/contract/${id}`)
+	await clients(server)
 }
 
 async function dev(server) {
@@ -294,10 +402,16 @@ async function main() {
 				yes: rest.includes("--yes"),
 			},
 		)
+	if (command === "upgrade")
+		return upgrade(
+			rest.find((a) => !a.startsWith("--")),
+			server,
+			{ yes: rest.includes("--yes") },
+		)
 	if (command === "clients") return clients(server)
 	if (command === "dev") return dev(server)
 	throw new Error(
-		"usage: node scripts/mainnet.mjs deploy <key-alias> | clients | dev",
+		"usage: node scripts/mainnet.mjs deploy <key-alias> | upgrade <key-alias> | clients | dev",
 	)
 }
 

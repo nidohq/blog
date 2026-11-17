@@ -56,6 +56,9 @@ contracts:
       local:
         type: workspace
         source: blog # the crate's package name
+        args:
+          # Who may upgrade it: the account that deploys it
+          admin: ${account.me}
 
       # Public networks point at a deployment you made and reviewed
       # separately, rather than deploying from the dev loop.
@@ -64,10 +67,12 @@ contracts:
       # workflow use.
       testnet:
         type: contract
-        source: CCSJBIEAGVGCXXE2XZ4CTNQIL4XZAJJ3J7AW463V4LPF7AJDPTG3VIYI
+        source: CAUDWVACSMS6FQZPMIMTTOL6IGUATB3YKBOUFDNPBFAH63YZJWNW34P5
       testnet-dev:
         type: workspace
         source: blog
+        args:
+          admin: ${account.testnet-user}
       # `npm run deploy:mainnet -- <key-alias>` pins mainnet: here.
 
   fungible-allowlist:

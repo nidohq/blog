@@ -2,7 +2,7 @@
 
 **Live: <https://nidohq.github.io/blog/>** (Stellar testnet), calling the blog
 at
-[`CCSJBIEA…3VIYI`](https://stellar.expert/explorer/testnet/contract/CCSJBIEAGVGCXXE2XZ4CTNQIL4XZAJJ3J7AW463V4LPF7AJDPTG3VIYI),
+[`CAUDWVAC…W34P5`](https://stellar.expert/explorer/testnet/contract/CAUDWVACSMS6FQZPMIMTTOL6IGUATB3YKBOUFDNPBFAH63YZJWNW34P5),
 pinned under `testnet:` in [`scaffold.yml`](scaffold.yml).
 
 An example Stellar app made from
@@ -58,16 +58,48 @@ nothing.
 | `get_post(id)`                    | A post, with its comment count and XLM tipped so far                                 |
 | `posts(first, limit)`             | Up to 20 posts from number `first` on                                                |
 | `comments(post_id, first, limit)` | Up to 20 comments on a post from index `first` on                                    |
+| `admin()`                         | Who may upgrade the blog: the address its constructor was given                      |
+| `upgrade(new_wasm_hash)`          | As the admin, replaces the blog's code with uploaded wasm; storage stays as it is    |
 
 Storage stays bounded: titles are at most 100 bytes, bodies 2000 and comments
 280 (UTF-8 bytes, which the forms count as you type), every read returns at most
 20 items, and each post, each comment and each post's counters is its own entry,
 so a comment or a tip never rewrites a post's text. It refuses empty text, text
 over a cap, a post that doesn't exist, a tip of zero or less, and a tip on your
-own post, each with its own error code. `cargo test -p blog` runs its 19 unit
+own post, each with its own error code. `cargo test -p blog` runs its 22 unit
 tests, which include `env.auths()` checks: posting and commenting authorize the
 blog alone, and a tip authorizes the blog and, under it, an XLM `transfer` to
-the blog.
+the blog. The upgrade tests build the blog's wasm, upgrade a blog holding a
+post, a comment and a tip to it, and read all three back through the new code;
+they also check that only the admin's authorization upgrades.
+
+### Upgrading it
+
+The constructor takes `admin`, and the deploy scripts pass the deploying
+account: `npm run deploy:testnet` uses `testnet-user` (the `args:` under
+`testnet-dev` in `scaffold.yml`), `deploy:mainnet` the key you name. A
+constructor runs once, so the admin never changes, and `upgrade` is the only
+thing it can do. An upgrade is two transactions from the admin: upload the new
+wasm, then call `upgrade` with its hash. The contract ID, posts, comments, tips
+and existing approvals stay as they were; a new function the app calls needs a
+new approval only if it isn't in the grant.
+
+On mainnet, `npm run upgrade:mainnet -- <admin-key-alias>` does both. It builds
+this checkout for mainnet, checks the key is the blog's admin and that the code
+differs from what's deployed, shows the old and new code hashes, and sends
+nothing until you type `upgrade`. On testnet, by hand:
+
+```sh
+STELLAR_NETWORK=testnet CARGO_TARGET_DIR=target/testnet \
+  npm run stellar -- contract build --package blog
+npm run stellar -- contract upload --network testnet --source-account testnet-user \
+  --wasm target/testnet/wasm32v1-none/release/blog.wasm      # prints the wasm hash
+npm run stellar -- contract invoke --network testnet --source-account testnet-user \
+  --id <blog-contract-id> -- upgrade --new_wasm_hash <hash>
+```
+
+Build for the network you upgrade on: the wasm carries that network's XLM
+contract ID (see [AGENTS.md](AGENTS.md)).
 
 ## Run it
 
@@ -124,9 +156,10 @@ npm run dev:mainnet                          # http://localhost:5421
 global Stellar config or added to this project with
 `npm run stellar -- keys add <alias> --secret-key` (it prompts; nothing echoes).
 `deploy:mainnet` checks that the RPC is mainnet and that the wasm pays in
-mainnet's XLM, shows the deployer and the code hash, and sends nothing until you
-type `deploy`. It then uploads and creates the contract (fees in real XLM), pins
-its ID under `contracts.blog.networks.mainnet` in `scaffold.yml`, and writes the
+mainnet's XLM, shows the deployer, the admin (the same key: the one that may
+upgrade the blog later) and the code hash, and sends nothing until you type
+`deploy`. It then uploads and creates the contract (fees in real XLM), pins its
+ID under `contracts.blog.networks.mainnet` in `scaffold.yml`, and writes the
 mainnet client. `dev:mainnet` checks the pinned contract is live, writes the
 client, and starts the app against it. `npm run dev` goes back to testnet.
 
