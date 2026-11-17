@@ -6,8 +6,14 @@
 //   npm run stellar -- contract invoke --id <C…> --network testnet -- --help
 //
 // `--check` only verifies that a new enough stellar-scaffold is installed.
+//
+// Scaffold builds for STELLAR_NETWORK, from the shell or the root .env. A
+// clean checkout has no .env, so `scaffold` commands default it to testnet,
+// as .env.example does: hosted Nido runs there. An explicit `--network` wins.
 import { spawnSync } from "node:child_process"
-import { SCAFFOLD_MIN, older, toolEnv, versionOf } from "./tools.mjs"
+import { existsSync, readFileSync } from "node:fs"
+import { resolve } from "node:path"
+import { SCAFFOLD_MIN, older, root, toolEnv, versionOf } from "./tools.mjs"
 
 const args = process.argv.slice(2)
 if (args[0] === "--check" || args[0] === "scaffold") {
@@ -27,9 +33,20 @@ if (args[0] === "--check" || args[0] === "scaffold") {
 	}
 	if (args[0] === "--check") process.exit(0)
 }
+const env = toolEnv()
+const dotEnv = resolve(root, ".env")
+if (
+	args[0] === "scaffold" &&
+	!env.STELLAR_NETWORK &&
+	!(
+		existsSync(dotEnv) &&
+		/^\s*STELLAR_NETWORK\s*=/m.test(readFileSync(dotEnv, "utf8"))
+	)
+)
+	env.STELLAR_NETWORK = "testnet"
 const { status } = spawnSync("stellar", args, {
 	stdio: "inherit",
-	env: toolEnv(),
+	env,
 	shell: process.platform === "win32",
 })
 process.exit(status ?? 1)
