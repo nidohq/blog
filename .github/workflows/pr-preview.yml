@@ -1,0 +1,54 @@
+name: PR preview
+
+# Per-PR preview of the app: deploys to the gh-pages branch under
+# /pr-preview/pr-<number>/ (https://nidohq.github.io/blog/pr-preview/pr-<n>/)
+# and keeps a sticky PR comment with the link. Deployed on open and update,
+# removed when the PR closes. Like the main site (pages.yml), it calls the
+# blog pinned under `testnet:` in the PR's scaffold.yml, or is a read-only
+# demo until there is one.
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+permissions: {}
+
+concurrency: preview-${{ github.ref }}
+
+jobs:
+  preview:
+    # Previews push to gh-pages, which forks cannot do; same-repo PRs only.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      STELLAR_NETWORK: testnet
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 # zizmor: ignore[artipacked]
+        # the preview action pushes gh-pages with the checkout token, so
+        # credentials must persist for this job (unlike the rest of CI).
+      - if: github.event.action != 'closed'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - if: github.event.action != 'closed'
+        run: rustup toolchain install
+      - if: github.event.action != 'closed'
+        uses: stellar/stellar-cli@5a7c5fe76530bf4248477ac812fc757146b98cc4 # v27.0.0
+        with:
+          version: 27.0.0
+      - if: github.event.action != 'closed'
+        run: npm run tools:scaffold
+      - if: github.event.action != 'closed'
+        run: npm ci
+      - if: github.event.action != 'closed'
+        name: Build
+        env:
+          BASE_PATH:
+            /${{ github.event.repository.name }}/pr-preview/pr-${{
+            github.event.pull_request.number }}/
+        run: scripts/build-site.sh
+      - uses: rossjrw/pr-preview-action@ffa7509e91a3ec8dfc2e5536c4d5c1acdf7a6de9 # v1.8.1
+        with:
+          source-dir: app/dist
