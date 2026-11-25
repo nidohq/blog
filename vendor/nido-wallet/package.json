@@ -1,0 +1,13 @@
+{
+  "name": "@nidohq/stellar-wallets-kit-module",
+  "version": "0.1.1-spike",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "peerDependencies": {
+    "@creit.tech/stellar-wallets-kit": "^2.5.0",
+    "@stellar/stellar-sdk": "^16.1.0"
+  }
+}

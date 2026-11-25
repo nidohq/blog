@@ -1,0 +1,54 @@
+.Blog {
+	max-width: 760px;
+	margin: 0 auto;
+}
+
+.Blog :global(.card) {
+	margin-bottom: 1.5rem;
+}
+
+.intro {
+	margin: 2rem 0 2.5rem;
+}
+
+.intro h1 {
+	font-weight: 600;
+	margin-bottom: 0.5rem;
+}
+
+.postList {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+
+.postList h3 {
+	margin: 0 0 0.25rem;
+}
+
+.postList a {
+	text-decoration: none;
+}
+
+.pager {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	margin-bottom: 2rem;
+}
+
+.post {
+	margin-bottom: 2rem;
+}
+
+.post h1 {
+	margin-bottom: 0.25rem;
+	overflow-wrap: anywhere;
+}
+
+.body {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	margin: 1.5rem 0;
+}
