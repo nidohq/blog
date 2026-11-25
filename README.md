@@ -282,8 +282,8 @@ and the commit after it makes it the blog:
 - the template-only files an app made with `npm run new-app` doesn't carry:
   `CHANGELOG.md`, `CONTRIBUTING.md`, `scripts/new-app.*` and `scripts/blank/`.
 
-The other sample contracts (`fungible-allowlist`, `nft-enumerable`) stay as the
-template has them.
+The template's other sample contracts (`fungible-allowlist`, `nft-enumerable`)
+are gone: the blog is the only contract.
 
 ## Building on it
 

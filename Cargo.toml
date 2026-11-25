@@ -11,11 +11,7 @@ version = "0.0.2"
 
 [workspace.dependencies]
 soroban-sdk = "26.1.0"
-stellar-access = "0.7.2"
-stellar-macros = "0.7.2"
-stellar-tokens = "0.7.2"
 stellar-registry = "0.1.0"
-stellar-xdr = "26.0.1"
 
 [profile.release]
 opt-level = "z"

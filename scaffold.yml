@@ -74,29 +74,3 @@ contracts:
         args:
           admin: ${account.testnet-user}
       # `npm run deploy:mainnet -- <key-alias>` pins mainnet: here.
-
-  fungible-allowlist:
-    networks:
-      local:
-        type: workspace
-        source: fungible-allowlist-example
-        args:
-          name: ExampleToken
-          symbol: EXT
-          admin: ${account.me}
-          manager: ${account.me}
-          initial_supply: 1000000000000000000000000
-      # testnet:
-      #   type: contract
-      #   source: C... # your deployment
-
-  nft-enumerable:
-    networks:
-      local:
-        type: workspace
-        source: nft-enumerable-example
-        args:
-          uri: https://example.com/nft/
-          name: ExampleNFT
-          symbol: ENFT
-          owner: ${account.me}
