@@ -69,11 +69,13 @@ without an error (it compiles and writes no clients), so the wrapper refuses it;
 5. Call it with the pattern below, inside a `SessionGate`.
 
 Build contracts through Scaffold. Plain `stellar contract build` compiles for
-the local network: `stellar_registry::import_asset!("xlm")` bakes the network's
-XLM contract ID in at compile time, so a local build deployed to testnet fails
-with `Error(Context, InvalidAction)`. Recover with
-`cargo clean -p <crate> --target wasm32v1-none --release`, then deploy again.
-`prepare:prototype` builds into `target/prototype` to stay out of the way.
+the local network: a contract that uses `stellar_registry::import_asset!("xlm")`
+bakes the network's XLM contract ID in at compile time, so a local build
+deployed to testnet fails with `Error(Context, InvalidAction)`. (The blog works
+its XLM contract out at run time instead, so one build serves every network.)
+Recover with `cargo clean -p <crate> --target wasm32v1-none --release`, then
+deploy again. `prepare:prototype` builds into `target/prototype` to stay out of
+the way.
 
 ## Calling a contract from React
 

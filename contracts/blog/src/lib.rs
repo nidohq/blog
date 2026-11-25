@@ -14,6 +14,15 @@
 //! The blog can be upgraded in place: the admin named at deployment may
 //! replace its code with [`Blog::upgrade`], keeping every post, comment and
 //! tip. Nothing else needs or gives the admin any power.
+//!
+//! Every entry has a time to live, after which the network archives it. A
+//! write creates its entries with the network's minimum (120 days on
+//! mainnet) and extends nothing, so what a call costs doesn't depend on when
+//! it happens to land. An archived entry is still read (simulation sees it),
+//! and the next write that needs it restores it, at that writer's cost.
+//! [`Blog::keep_alive`] tops the blog's instance and code and a page of posts
+//! up to the network's maximum lifetime, for anyone willing to pay for it:
+//! the owner's keep-alive.
 use soroban_sdk::{
     Address, BytesN, Env, String, Vec, contract, contractevent, contractimpl, contracttype,
 };
@@ -240,6 +249,27 @@ impl Blog {
         Ok(())
     }
 
+    /// Extend the blog's instance and code, and up to `limit` posts (at most
+    /// [`MAX_PAGE`]) from number `first` on with their stats, to the
+    /// network's maximum lifetime; the transaction restores any that were
+    /// archived. Anyone may call it and pays the rent for the time it adds;
+    /// it changes nothing else. Comments are left as they are: written once,
+    /// they are read even when archived. Returns how many posts it kept.
+    pub fn keep_alive(env: &Env, first: u32, limit: u32) -> u32 {
+        let first = first.max(1);
+        let end = page_end(first, limit, Self::post_count(env) + 1);
+        let max = env.storage().max_ttl();
+        env.storage().instance().extend_ttl(max, max);
+        for id in first..end {
+            extend(env, &Key::Entry(id));
+            // A post nobody has commented on or tipped has no stats yet
+            if env.storage().persistent().has(&Key::Stats(id)) {
+                extend(env, &Key::Stats(id));
+            }
+        }
+        end.saturating_sub(first)
+    }
+
     /// How many posts there are; the newest is number `post_count()`.
     pub fn post_count(env: &Env) -> u32 {
         env.storage().instance().get(&Key::PostCount).unwrap_or(0)
@@ -296,6 +326,12 @@ impl Blog {
         }
         Ok(page)
     }
+}
+
+/// Extend persistent entry `key` to the network's maximum lifetime.
+fn extend(env: &Env, key: &Key) {
+    let max = env.storage().max_ttl();
+    env.storage().persistent().extend_ttl(key, max, max);
 }
 
 fn admin(env: &Env) -> Address {

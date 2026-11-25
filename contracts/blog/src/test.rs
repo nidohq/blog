@@ -349,6 +349,18 @@ fn tip_refuses_nothing_its_own_author_and_missing_posts() {
 }
 
 #[test]
+fn tip_refuses_an_amount_past_any_balance() {
+    let t = setup();
+    let alice = Address::generate(&t.env);
+    let id = t.post_by(&alice, "Hello");
+    let bob = t.funded(10);
+    assert!(t.blog.try_tip(&bob, &id, &i128::MAX).is_err());
+    assert_eq!(t.xlm.balance(&bob), 100_000_000);
+    assert_eq!(t.xlm.balance(&alice), 0);
+    assert_eq!(t.blog.get_post(&id).tipped, 0);
+}
+
+#[test]
 fn tip_fails_without_the_funds() {
     let t = setup();
     let alice = Address::generate(&t.env);
@@ -440,7 +452,7 @@ fn a_post_with_no_comments_has_an_empty_page() {
 // --- admin and upgrade --------------------------------------------------
 
 /// The blog's wasm, built from this checkout as `stellar contract build`
-/// would (for the local network), once per test run.
+/// would, once per test run.
 fn blog_wasm() -> &'static [u8] {
     static WASM: std::sync::OnceLock<std::vec::Vec<u8>> = std::sync::OnceLock::new();
     WASM.get_or_init(|| {
@@ -452,7 +464,6 @@ fn blog_wasm() -> &'static [u8] {
             .args(["build", "--package", "blog", "--release"])
             .args(["--target", "wasm32v1-none", "--target-dir"])
             .arg(&target)
-            .env("STELLAR_NETWORK", "local")
             .status()
             .expect("cargo builds the blog's wasm");
         assert!(status.success(), "building the blog's wasm failed");
@@ -583,4 +594,126 @@ fn only_the_admin_can_upgrade() {
         executable(&t.env, &t.blog.address),
         soroban_sdk::xdr::ContractExecutable::Wasm(hash.to_array().into())
     );
+}
+
+// --- the XLM contract -----------------------------------------------------
+
+/// The blog pays through the XLM contract of the network it runs on: the
+/// same wasm on mainnet and testnet, each with its own.
+#[test]
+fn xlm_is_the_native_contract_of_the_network_it_runs_on() {
+    let t = setup();
+    for (passphrase, xlm) in [
+        (
+            "Public Global Stellar Network ; September 2015",
+            "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA",
+        ),
+        (
+            "Test SDF Network ; September 2015",
+            "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        ),
+    ] {
+        let id = t.env.crypto().sha256(&soroban_sdk::Bytes::from_slice(
+            &t.env,
+            passphrase.as_bytes(),
+        ));
+        t.env.ledger().set_network_id(id.to_array());
+        assert_eq!(
+            t.env
+                .as_contract(&t.blog.address, || xlm::native_address(&t.env)),
+            Address::from_str(&t.env, xlm)
+        );
+    }
+}
+
+// --- storage lifetime ---------------------------------------------------
+
+/// Mainnet's lifetimes: an entry starts with 120 days to live and may have
+/// at most 180.
+fn on_mainnet_ledgers(t: &Setup) {
+    t.env.ledger().set_min_persistent_entry_ttl(2_073_600);
+    t.env.ledger().set_max_entry_ttl(3_110_400);
+}
+
+fn later(t: &Setup, days: u32) {
+    let now = t.env.ledger().sequence();
+    t.env.ledger().set_sequence_number(now + days * 17_280);
+}
+
+/// Days `key` has left to live, rounded down.
+fn days_left(t: &Setup, key: &Key) -> u32 {
+    use soroban_sdk::testutils::storage::Persistent as _;
+    t.env.as_contract(&t.blog.address, || {
+        t.env.storage().persistent().get_ttl(key) / 17_280
+    })
+}
+
+/// Days the blog's instance and code have left to live.
+fn blog_days_left(t: &Setup) -> (u32, u32) {
+    use soroban_sdk::testutils::Deployer as _;
+    let deployer = t.env.deployer();
+    (
+        deployer.get_contract_instance_ttl(&t.blog.address) / 17_280,
+        deployer.get_contract_code_ttl(&t.blog.address) / 17_280,
+    )
+}
+
+/// A write's cost doesn't depend on when it lands: it creates its entries
+/// with the network's minimum lifetime and extends nothing, not even the post
+/// it is about or the blog's code.
+#[test]
+fn writes_extend_nothing() {
+    let t = setup();
+    on_mainnet_ledgers(&t);
+    let alice = t.funded(10);
+    let bob = t.funded(10);
+    let id = t.post_by(&alice, "Hello");
+    assert_eq!(days_left(&t, &Key::Entry(id)), 119);
+    // The blog itself was registered before the mainnet lifetimes applied
+    t.blog.keep_alive(&1, &0);
+    assert_eq!(blog_days_left(&t), (180, 180));
+
+    later(&t, 40);
+    t.blog.comment(&bob, &id, &t.s("Hi"));
+    t.blog.tip(&bob, &id, &1_000_000);
+    t.post_by(&bob, "Again");
+    assert_eq!(days_left(&t, &Key::Entry(id)), 79);
+    assert_eq!(days_left(&t, &Key::Stats(id)), 119);
+    assert_eq!(days_left(&t, &Key::Comment(id, 0)), 119);
+    assert_eq!(blog_days_left(&t), (140, 140));
+}
+
+#[test]
+fn keep_alive_extends_a_page_of_posts_for_anyone() {
+    let t = setup();
+    on_mainnet_ledgers(&t);
+    let alice = Address::generate(&t.env);
+    for n in 0..3 {
+        t.post_by(&alice, &std::format!("Post {n}"));
+    }
+    let bob = t.funded(10);
+    t.blog.tip(&bob, &2, &1_000_000);
+    // 100 days on, the posts and stats have 20 days left, the blog 80
+    later(&t, 100);
+
+    // No authorization at all
+    t.env.set_auths(&[]);
+    assert_eq!(t.blog.keep_alive(&1, &MAX_PAGE), 3);
+    assert!(t.env.auths().is_empty());
+    for id in 1..=3 {
+        assert_eq!(days_left(&t, &Key::Entry(id)), 180);
+    }
+    assert_eq!(days_left(&t, &Key::Stats(2)), 180);
+    assert_eq!(blog_days_left(&t), (180, 180));
+    // It writes nothing: posts with no stats still have none
+    assert!(!t.env.as_contract(&t.blog.address, || {
+        t.env.storage().persistent().has(&Key::Stats(1))
+    }));
+    assert_eq!(t.blog.get_post(&2).tipped, 1_000_000);
+
+    // A page at a time, and nothing past the last post
+    assert_eq!(t.blog.keep_alive(&2, &1), 1);
+    assert_eq!(t.blog.keep_alive(&0, &u32::MAX), 3);
+    assert_eq!(t.blog.keep_alive(&4, &MAX_PAGE), 0);
+    assert_eq!(t.blog.keep_alive(&u32::MAX, &MAX_PAGE), 0);
 }

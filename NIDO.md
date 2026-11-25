@@ -106,9 +106,11 @@ else holds it.
    asks for the grants from step 2.
 
 Build contracts through Scaffold. A plain `stellar contract build` compiles for
-the local network, and `stellar_registry::import_asset!("xlm")` bakes that
-network's XLM contract in at compile time: deployed to testnet, it fails with
-`Error(Context, InvalidAction)`. To recover, run
+the local network, and a contract that uses
+`stellar_registry::import_asset!("xlm")` bakes that network's XLM contract in at
+compile time: deployed to testnet, it fails with
+`Error(Context, InvalidAction)`. (This repository's blog works its XLM contract
+out at run time instead, so one build serves every network.) To recover, run
 `cargo clean -p <crate> --target wasm32v1-none --release` and deploy again.
 
 ## Calling a contract from React
