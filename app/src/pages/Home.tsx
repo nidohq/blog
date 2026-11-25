@@ -1,3 +1,4 @@
+import { stellarNetwork } from "@stellar-scaffold/app-lib"
 import React, { useState } from "react"
 import { Link } from "react-router-dom"
 import { formatTime, formatXlm, PAGE } from "../blog"
@@ -22,7 +23,10 @@ const Home: React.FC = () => {
 					authors in XLM, from a Nido passkey account. Approve the blog once and
 					each post, comment and tip after that asks your device for the
 					app&apos;s passkey and nothing else, with tips capped at a few XLM a
-					day. Testnet only.
+					day.{" "}
+					{stellarNetwork === "PUBLIC"
+						? "This is Stellar mainnet: tips are real XLM."
+						: "This is Stellar testnet: its XLM has no value."}
 				</p>
 			</header>
 

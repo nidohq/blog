@@ -1,7 +1,7 @@
 import { Address, Asset, Networks, StrKey, xdr } from "@stellar/stellar-sdk"
 import { describe, expect, it, vi } from "vitest"
 import {
-	checkMainnetXlm,
+	checkNetworkFree,
 	checkRpc,
 	deployedInstance,
 	pinMainnet,
@@ -13,19 +13,13 @@ const xlm = (passphrase: string) =>
 	Buffer.from(Asset.native().contractId(passphrase))
 
 describe("deploy:mainnet / dev:mainnet preflight", () => {
-	it("takes only a wasm that pays in mainnet's XLM", () => {
-		const wasm = (passphrase: string) =>
-			Buffer.concat([Buffer.from("\0asm"), xlm(passphrase), Buffer.alloc(8)])
-		expect(() => checkMainnetXlm(wasm(Networks.PUBLIC))).not.toThrow()
-		expect(() => checkMainnetXlm(wasm(Networks.TESTNET))).toThrow(
-			"built for another network",
-		)
-		// Both networks' IDs: still refused
-		expect(() =>
-			checkMainnetXlm(
-				Buffer.concat([wasm(Networks.PUBLIC), xlm(Networks.TESTNET)]),
-			),
-		).toThrow("built for another network")
+	it("takes only a wasm with no network's XLM contract built in", () => {
+		const code = Buffer.concat([Buffer.from("\0asm"), Buffer.alloc(64)])
+		expect(() => checkNetworkFree(code)).not.toThrow()
+		for (const passphrase of [Networks.PUBLIC, Networks.TESTNET])
+			expect(() =>
+				checkNetworkFree(Buffer.concat([code, xlm(passphrase)])),
+			).toThrow(`XLM contract of ${passphrase}`)
 	})
 
 	it("refuses a missing, malformed, testnet or placeholder pin", () => {
@@ -77,7 +71,7 @@ contracts:
 			checkRpc({
 				getNetwork: async () => ({ passphrase: Networks.TESTNET }),
 			} as never),
-		).rejects.toThrow("is not Stellar mainnet")
+		).rejects.toThrow("is not Stellar MAINNET")
 		await expect(
 			checkRpc({
 				getNetwork: async () => ({ passphrase: Networks.PUBLIC }),
@@ -85,12 +79,12 @@ contracts:
 		).resolves.toBeUndefined()
 	})
 
-	it("needs the pinned contract live on chain", async () => {
+	it("needs the pinned contract on chain", async () => {
 		const server = {
 			getLedgerEntries: vi.fn().mockResolvedValue({ entries: [] }),
 		}
 		await expect(deployedInstance(id, server as never)).rejects.toThrow(
-			"absent or archived",
+			"There is no contract",
 		)
 	})
 

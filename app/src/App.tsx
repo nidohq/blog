@@ -1,4 +1,4 @@
-import { labPrefix } from "@stellar-scaffold/app-lib"
+import { labPrefix, nidoBase } from "@stellar-scaffold/app-lib"
 import { blog } from "@stellar-scaffold/app-lib/clients"
 import { Link, NavLink, Outlet, Route, Routes } from "react-router-dom"
 import styles from "./App.module.css"
@@ -64,7 +64,7 @@ const AppLayout = () => (
 				>
 					Source
 				</a>
-				<a href="https://test.nido.fyi" target="_blank" rel="noreferrer">
+				<a href={nidoBase} target="_blank" rel="noreferrer">
 					Nido wallet
 				</a>
 				<a href="https://scaffoldstellar.org" target="_blank" rel="noreferrer">

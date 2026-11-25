@@ -12,7 +12,9 @@ passkey: a [Nido](https://test.nido.fyi) smart account sits in the wallet
 picker. The app makes a second passkey of its own, and the owner approves it
 once, in one Nido popup, under two Perch rules. After that each post, comment
 and tip asks the device for the app's passkey and nothing else: no Nido page, no
-wallet prompt. Tips stop at 5 XLM a day. Testnet only.
+wallet prompt. Tips stop at 5 XLM a day. The site above runs on testnet; to use
+real XLM, [run it on mainnet](#run-it-on-mainnet-locally) against a blog you
+deploy.
 
 ![The approval card: what the blog may do, in plain words](screenshots/blog-approve.png)
 
@@ -60,18 +62,28 @@ nothing.
 | `comments(post_id, first, limit)` | Up to 20 comments on a post from index `first` on                                    |
 | `admin()`                         | Who may upgrade the blog: the address its constructor was given                      |
 | `upgrade(new_wasm_hash)`          | As the admin, replaces the blog's code with uploaded wasm; storage stays as it is    |
+| `keep_alive(first, limit)`        | Extends the blog and up to 20 posts to the longest lifetime; anyone may pay for it   |
 
 Storage stays bounded: titles are at most 100 bytes, bodies 2000 and comments
 280 (UTF-8 bytes, which the forms count as you type), every read returns at most
 20 items, and each post, each comment and each post's counters is its own entry,
 so a comment or a tip never rewrites a post's text. It refuses empty text, text
 over a cap, a post that doesn't exist, a tip of zero or less, and a tip on your
-own post, each with its own error code. `cargo test -p blog` runs its 22 unit
+own post, each with its own error code. `cargo test -p blog` runs its 26 unit
 tests, which include `env.auths()` checks: posting and commenting authorize the
 blog alone, and a tip authorizes the blog and, under it, an XLM `transfer` to
 the blog. The upgrade tests build the blog's wasm, upgrade a blog holding a
 post, a comment and a tip to it, and read all three back through the new code;
-they also check that only the admin's authorization upgrades.
+they also check that only the admin's authorization upgrades. Others check that
+a tip of more XLM than exists moves nothing, that writes extend no lifetimes and
+`keep_alive` tops them up, and that the blog pays through mainnet's XLM contract
+on mainnet and testnet's on testnet.
+
+**One build for every network.** The blog works out the XLM contract's address
+from the network it runs on (`with_stellar_asset(native).deployed_address()`),
+rather than baking one network's address in at build time. The same wasm, with
+the same hash, runs on testnet and mainnet, and can't pay through another
+network's XLM.
 
 ### Upgrading it
 
@@ -85,21 +97,84 @@ and existing approvals stay as they were; a new function the app calls needs a
 new approval only if it isn't in the grant.
 
 On mainnet, `npm run upgrade:mainnet -- <admin-key-alias>` does both. It builds
-this checkout for mainnet, checks the key is the blog's admin and that the code
-differs from what's deployed, shows the old and new code hashes, and sends
-nothing until you type `upgrade`. On testnet, by hand:
+this checkout, checks the key is the blog's admin and that the code differs from
+what's deployed, shows the old and new code hashes and the upload's fee
+(simulated), and sends nothing until you type `upgrade`. On testnet, by hand:
 
 ```sh
-STELLAR_NETWORK=testnet CARGO_TARGET_DIR=target/testnet \
-  npm run stellar -- contract build --package blog
+CARGO_TARGET_DIR=target/release-wasm npm run stellar -- contract build --package blog
 npm run stellar -- contract upload --network testnet --source-account testnet-user \
-  --wasm target/testnet/wasm32v1-none/release/blog.wasm      # prints the wasm hash
+  --wasm target/release-wasm/wasm32v1-none/release/blog.wasm   # prints the wasm hash
 npm run stellar -- contract invoke --network testnet --source-account testnet-user \
   --id <blog-contract-id> -- upgrade --new_wasm_hash <hash>
 ```
 
-Build for the network you upgrade on: the wasm carries that network's XLM
-contract ID (see [AGENTS.md](AGENTS.md)).
+### Storage lifetime
+
+Every ledger entry has a time to live. When it runs out the network archives the
+entry; nothing is deleted. On mainnet a new entry lives 120 days and can be
+extended to at most 180 (testnet: 7 and 180).
+
+| Entry                        | Written by              | Lifetime                 | Extended by  |
+| ---------------------------- | ----------------------- | ------------------------ | ------------ |
+| Code (the wasm, 10.9 KB)     | deploy, upgrade (admin) | 120 days from upload     | `keep_alive` |
+| Instance (admin, post count) | deploy; every post      | 120 days from deployment | `keep_alive` |
+| A post's text (`Entry`)      | `post`, once            | 120 days from writing    | `keep_alive` |
+| A post's counters (`Stats`)  | first comment or tip    | 120 days from that write | `keep_alive` |
+| A comment                    | `comment`, once         | 120 days from writing    | nothing      |
+
+The account that sends a write pays for 120 days of what it creates: on mainnet
+on 2026-11-25, simulated, 0.46 XLM for a post at the 2000-byte cap, 0.10 XLM for
+a short one and 0.11 XLM for a 280-byte comment. For a Nido account, Nido's
+relayer pays. Writes extend nothing, so a call's cost doesn't depend on when it
+happens to land.
+
+When an entry is archived:
+
+- **Readers** see no difference. The app reads by simulation, and simulation
+  reads archived entries: posts and comments never disappear.
+- **Writers** restore what their call needs, in the same transaction, at their
+  cost: about what writing it costs. A comment or tip on an archived post
+  restores the post's two entries. If the blog's code and instance are archived,
+  the next write also restores those, about 15 XLM on mainnet; Nido's relayer
+  may refuse a fee like that, so keep the blog alive.
+
+`keep_alive(first, limit)` extends the code, the instance and a page of posts
+with their counters to 180 days, restoring anything archived. Anyone may call it
+and pays the rent for the time it adds. The owner's command runs it over every
+post, after showing the simulated fee:
+
+```sh
+npm run keep-alive:mainnet -- <your-key-alias>   # type "keep" to send
+```
+
+Most of the cost is the code: rent for contract code is charged on its size in
+memory, about 0.12 XLM a day for this blog on mainnet, against about 0.0015 XLM
+per KB a day for posts. Run it every month or two, and the blog never archives.
+Comments are left alone: written once and read even when archived, they need no
+upkeep.
+
+### Checking the code
+
+The build is reproducible: no paths or timestamps end up in the wasm, only the
+Rust, SDK and CLI versions in its metadata. With the same `Cargo.lock`, the Rust
+in [`rust-toolchain.toml`](rust-toolchain.toml) (1.93.0) and Stellar CLI 27.0.0,
+`stellar contract build` gives the same hash on any machine. To check a deployed
+blog runs this checkout's code:
+
+```sh
+CARGO_TARGET_DIR=target/release-wasm npm run stellar -- contract build --package blog
+shasum -a 256 target/release-wasm/wasm32v1-none/release/blog.wasm
+npm run stellar -- contract info meta --wasm target/release-wasm/wasm32v1-none/release/blog.wasm
+npm run stellar -- contract fetch --id <blog-contract-id> -o deployed.wasm \
+  --rpc-url https://mainnet.sorobanrpc.com \
+  --network-passphrase "Public Global Stellar Network ; September 2015"
+shasum -a 256 deployed.wasm   # the same hash; Stellar Expert shows it on the contract's page
+```
+
+`deploy:mainnet` and `upgrade:mainnet` deploy exactly this build and print its
+hash before asking. The release build excludes test code: the test XLM token and
+`testutils` exist only under `cfg(test)` and in `dev-dependencies`.
 
 ## Run it
 
@@ -144,38 +219,88 @@ the approval's transaction from the account's `doc_applied` event.
 Real XLM, your own key. Hosted Nido's mainnet wallet is <https://nido.fyi>, with
 its relayer at `https://nido-mainnet.fly.dev`; tips pay in mainnet's XLM
 (`CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA`). The blog isn't on
-mainnet until you deploy it:
+mainnet until you deploy it. From a clean checkout, with no `.env`:
 
 ```sh
 npm run tools:scaffold && npm ci
-npm run deploy:mainnet -- <your-key-alias>   # asks before it sends; pins under mainnet:
+npm run deploy:mainnet -- <your-key-alias>   # type "deploy" to send; pins under mainnet:
 npm run dev:mainnet                          # http://localhost:5421
 ```
 
 `<your-key-alias>` is a `stellar keys` identity holding mainnet XLM, in your
 global Stellar config or added to this project with
 `npm run stellar -- keys add <alias> --secret-key` (it prompts; nothing echoes).
-`deploy:mainnet` checks that the RPC is mainnet and that the wasm pays in
-mainnet's XLM, shows the deployer, the admin (the same key: the one that may
-upgrade the blog later) and the code hash, and sends nothing until you type
-`deploy`. It then uploads and creates the contract (fees in real XLM), pins its
-ID under `contracts.blog.networks.mainnet` in `scaffold.yml`, and writes the
-mainnet client. `dev:mainnet` checks the pinned contract is live, writes the
-client, and starts the app against it. `npm run dev` goes back to testnet.
+Nothing here creates, funds or prints a key.
 
-No `.env` is needed for this: the app always runs on port 5421 (`PORT` in the
-shell or `.env` changes it). If another process holds 5421 on any address,
+`deploy:mainnet` checks that the RPC is mainnet and that nothing is pinned yet,
+builds the blog, and shows the deployer, the admin (the same key: the one that
+may upgrade the blog later), the code hash and the upload's fee, simulated on
+the spot. It sends nothing until you type `deploy`. It then uploads the code and
+creates the contract, pins its ID under `contracts.blog.networks.mainnet` in
+`scaffold.yml`, and writes the mainnet client. Commit that `scaffold.yml` change
+so others run the same deployment. On 2026-11-25 the upload simulated at 14.8
+XLM, nearly all of it rent for the code's first 120 days, and creating the
+contract adds about 0.05 XLM: keep about 16 XLM on the key. `dev:mainnet` checks
+the pinned contract exists and runs this checkout's code (it warns if not),
+writes the client and starts the app against it. `npm run dev` goes back to
+testnet.
+
+| Command                                     | Sends                                | Asks you to type |
+| ------------------------------------------- | ------------------------------------ | ---------------- |
+| `npm run deploy:mainnet -- <key-alias>`     | upload, create                       | `deploy`         |
+| `npm run upgrade:mainnet -- <admin-alias>`  | upload, `upgrade`                    | `upgrade`        |
+| `npm run keep-alive:mainnet -- <key-alias>` | one `keep_alive` per 20 posts        | `keep`           |
+| `npm run dev:mainnet`                       | nothing: it reads, builds and serves |                  |
+
+Each shows what it will send and the fee, simulated just before, then waits for
+the word; anything else stops it with nothing sent.
+
+**Rehearse first, on testnet.** `BLOG_REHEARSAL=testnet` runs the same scripts
+against testnet: the same build, checks, prompts and transactions, testnet's RPC
+and Nido (test.nido.fyi), and the pin kept in `target/rehearsal/blog-id` instead
+of `scaffold.yml`. With a throwaway key that Friendbot funds:
+
+```sh
+npm run stellar -- keys generate rehearsal --network testnet --fund
+BLOG_REHEARSAL=testnet npm run deploy:mainnet -- rehearsal
+BLOG_REHEARSAL=testnet npm run upgrade:mainnet -- rehearsal   # after a code change
+BLOG_REHEARSAL=testnet npm run keep-alive:mainnet -- rehearsal
+BLOG_REHEARSAL=testnet npm run dev:mainnet
+```
+
+No `.env` is needed for any of this: the app always runs on port 5421 (`PORT` in
+the shell or `.env` changes it). If another process holds 5421 on any address,
 `dev:mainnet` and `npm run dev` stop and name it rather than start beside it or
 on another port, because a Nido session belongs to the page's origin, port
 included.
 
 Open <http://localhost:5421>, press Connect and choose Nido: it opens nido.fyi.
-The approval is the same two rules, now on mainnet, with tips capped at 5 XLM a
-day. Simulated on 2026-11-13 against a live mainnet Nido account, the blog's
-grant writes 6.6 to 9.3 KB (the per-transaction limit is 132 KB) and needs no
-restore: mainnet's Perch contracts stay live until about 2027-02-21. Sessions
-and the connected account are kept apart per network, so testnet and mainnet
-don't share approvals on `localhost:5421`.
+The header says Mainnet, and the approval is the same two rules, now on mainnet,
+with tips capped at 5 XLM a day. Sessions and the connected account are kept
+apart per network, so testnet and mainnet don't share approvals on
+`localhost:5421`.
+
+**Limits.** Each call fits mainnet's per-transaction limits (132,096 bytes
+written, 200,000 bytes read from archive, 400 footprint entries, 400 million
+instructions) with room to spare, measured on testnet, whose limits are the
+same:
+
+| Call, from a Nido account (session)  | Writes  | Entries | Instructions | If Perch's code is archived too |
+| ------------------------------------ | ------- | ------- | ------------ | ------------------------------- |
+| Post, 100-byte title, 2000-byte body | ~3.1 KB | 14      | 6.5 M        | ~104 KB written (79%)           |
+| Comment, 280 bytes                   | ~0.9 KB | 16      | 6.5 M        | ~101 KB written (77%)           |
+| Tip                                  | 1.2 KB  | 25      | 8.8 M        | ~115 KB written (87%)           |
+| First approval (Nido's `apply_doc`)  | 6.6 KB  | 29      | 24.7 M       | does not fit: see below         |
+
+A restore writes the whole entry back, so an archived Perch code entry (12 to
+110 KB each, shared by every Nido account) adds its size to the call that needs
+it. A session call uses three or four of them and still fits, even with the
+blog's own code archived as well (a tip then writes about 126 KB, 95%). A first
+approval uses all five, 223 KB, which no single transaction can restore: they
+would have to be restored separately first
+(`stellar contract restore --wasm-hash <hash>`, one per transaction). On
+2026-11-25 all five were live on mainnet for another 88 days, until about
+2027-02-21; keeping them alive is Nido's to do.
 
 ## Tests
 
